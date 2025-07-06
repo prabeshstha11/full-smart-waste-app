@@ -63,6 +63,23 @@ export interface TestPost {
   created_at: Date;
 }
 
+// Pickup request interface
+export interface PickupRequest {
+  id: string;
+  user_id: string; // Customer who requested pickup
+  selected_items: string[]; // Array of item IDs
+  quantities: {[key: string]: number}; // Quantities for each item
+  pickup_date: Date;
+  pickup_time: Date;
+  location: string;
+  images: string[]; // Array of image URLs
+  status: 'pending' | 'accepted' | 'picked_up' | 'completed';
+  dealer_id?: string; // Dealer who accepted
+  rider_id?: string; // Rider assigned
+  created_at: Date;
+  updated_at: Date;
+}
+
 // Initialize database tables
 export async function initializeDatabase() {
   try {
@@ -133,6 +150,28 @@ export async function initializeDatabase() {
         posted_by VARCHAR(255) NOT NULL,
         message TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
+    // Create pickup_requests table if it doesn't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS pickup_requests (
+        id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        selected_items JSONB NOT NULL,
+        quantities JSONB NOT NULL,
+        pickup_date TIMESTAMP NOT NULL,
+        pickup_time TIMESTAMP NOT NULL,
+        location TEXT NOT NULL,
+        images JSONB DEFAULT '[]',
+        status VARCHAR(20) DEFAULT 'pending',
+        dealer_id VARCHAR(255),
+        rider_id VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (dealer_id) REFERENCES users(id),
+        FOREIGN KEY (rider_id) REFERENCES users(id)
       )
     `;
     
@@ -523,8 +562,6 @@ export async function createDummyUsers() {
   }
 }
 
-
-
 // Get user role by email (for dummy accounts)
 export async function getUserRoleByEmail(email: string): Promise<string | null> {
   try {
@@ -584,6 +621,116 @@ export async function getAllTestPosts(): Promise<TestPost[]> {
     return result as TestPost[];
   } catch (error) {
     console.error('Error getting all test posts:', error);
+    throw error;
+  }
+}
+
+// Create pickup request
+export async function createPickupRequest(requestData: {
+  id: string;
+  user_id: string;
+  selected_items: string[];
+  quantities: {[key: string]: number};
+  pickup_date: Date;
+  pickup_time: Date;
+  location: string;
+  images?: string[];
+}): Promise<PickupRequest> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      INSERT INTO pickup_requests (
+        id, user_id, selected_items, quantities, pickup_date, pickup_time, 
+        location, images, status, created_at, updated_at
+      )
+      VALUES (
+        ${requestData.id}, ${requestData.user_id}, 
+        ${JSON.stringify(requestData.selected_items)}, 
+        ${JSON.stringify(requestData.quantities)},
+        ${requestData.pickup_date}, ${requestData.pickup_time},
+        ${requestData.location}, ${JSON.stringify(requestData.images || [])},
+        'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      RETURNING *
+    `;
+    
+    console.log('Pickup request created successfully:', result[0]);
+    return result[0] as PickupRequest;
+  } catch (error) {
+    console.error('Error creating pickup request:', error);
+    throw error;
+  }
+}
+
+// Get pickup requests by user
+export async function getPickupRequestsByUser(userId: string): Promise<PickupRequest[]> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      SELECT * FROM pickup_requests 
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+    `;
+    
+    return result as PickupRequest[];
+  } catch (error) {
+    console.error('Error getting pickup requests by user:', error);
+    throw error;
+  }
+}
+
+// Get all pending pickup requests
+export async function getPendingPickupRequests(): Promise<PickupRequest[]> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      SELECT * FROM pickup_requests 
+      WHERE status = 'pending'
+      ORDER BY created_at ASC
+    `;
+    
+    return result as PickupRequest[];
+  } catch (error) {
+    console.error('Error getting pending pickup requests:', error);
+    throw error;
+  }
+}
+
+// Update pickup request status
+export async function updatePickupRequestStatus(
+  requestId: string, 
+  status: string, 
+  dealerId?: string, 
+  riderId?: string
+): Promise<PickupRequest> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      UPDATE pickup_requests 
+      SET status = ${status}, 
+          dealer_id = ${dealerId || null},
+          rider_id = ${riderId || null},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${requestId}
+      RETURNING *
+    `;
+    
+    console.log('Pickup request status updated successfully:', result[0]);
+    return result[0] as PickupRequest;
+  } catch (error) {
+    console.error('Error updating pickup request status:', error);
     throw error;
   }
 } 
