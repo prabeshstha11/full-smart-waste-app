@@ -16,18 +16,28 @@ export default function DatabaseInitializer({ children }: { children: React.Reac
       } catch (err) {
         console.error('Failed to initialize database:', err);
         setError(err instanceof Error ? err.message : 'Database initialization failed');
-        // Still set as initialized to not block the app
+        // Always set as initialized to not block the app
         setIsInitialized(true);
       }
     };
 
+    // Add a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (!isInitialized) {
+        console.warn('Database initialization timed out, continuing anyway');
+        setIsInitialized(true);
+      }
+    }, 5000); // 5 second timeout
+
     initDatabase();
+
+    return () => clearTimeout(timeoutId);
   }, []);
 
   if (!isInitialized) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Initializing database...</Text>
+        <Text style={styles.loadingText}>Initializing...</Text>
       </View>
     );
   }

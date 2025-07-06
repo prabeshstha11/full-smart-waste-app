@@ -4,8 +4,14 @@ import Constants from 'expo-constants';
 // Get database URL from environment variables
 const DATABASE_URL = Constants.expoConfig?.extra?.DATABASE_URL || process.env.DATABASE_URL;
 
-// Initialize database connection
-const sql = neon(DATABASE_URL!);
+// Initialize database connection only if URL is available
+let sql: any = null;
+
+if (DATABASE_URL) {
+  sql = neon(DATABASE_URL);
+} else {
+  console.warn('DATABASE_URL not configured. Database operations will be disabled.');
+}
 
 // User interface
 export interface User {
@@ -21,6 +27,11 @@ export interface User {
 // Initialize database tables
 export async function initializeDatabase() {
   try {
+    if (!sql) {
+      console.log('Database not configured, skipping initialization');
+      return;
+    }
+
     // Create users table if it doesn't exist
     await sql`
       CREATE TABLE IF NOT EXISTS users (
@@ -37,7 +48,8 @@ export async function initializeDatabase() {
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
-    throw error;
+    // Don't throw error to prevent app from crashing
+    console.warn('Continuing without database initialization');
   }
 }
 
@@ -50,6 +62,10 @@ export async function upsertUser(userData: {
   role?: string;
 }): Promise<User> {
   try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
     const result = await sql`
       INSERT INTO users (id, email, first_name, last_name, role, updated_at)
       VALUES (${userData.id}, ${userData.email}, ${userData.first_name || null}, ${userData.last_name || null}, ${userData.role || 'customer'}, CURRENT_TIMESTAMP)
@@ -74,6 +90,10 @@ export async function upsertUser(userData: {
 // Get user by ID
 export async function getUserById(id: string): Promise<User | null> {
   try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
     const result = await sql`
       SELECT * FROM users WHERE id = ${id}
     `;
@@ -88,6 +108,10 @@ export async function getUserById(id: string): Promise<User | null> {
 // Get user by email
 export async function getUserByEmail(email: string): Promise<User | null> {
   try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
     const result = await sql`
       SELECT * FROM users WHERE email = ${email}
     `;
@@ -102,6 +126,10 @@ export async function getUserByEmail(email: string): Promise<User | null> {
 // Update user role
 export async function updateUserRole(id: string, role: string): Promise<User> {
   try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
     const result = await sql`
       UPDATE users 
       SET role = ${role}, updated_at = CURRENT_TIMESTAMP
@@ -120,6 +148,10 @@ export async function updateUserRole(id: string, role: string): Promise<User> {
 // Get all users
 export async function getAllUsers(): Promise<User[]> {
   try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
     const result = await sql`
       SELECT * FROM users ORDER BY created_at DESC
     `;
@@ -134,6 +166,10 @@ export async function getAllUsers(): Promise<User[]> {
 // Delete user
 export async function deleteUser(id: string): Promise<boolean> {
   try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
     const result = await sql`
       DELETE FROM users WHERE id = ${id}
     `;

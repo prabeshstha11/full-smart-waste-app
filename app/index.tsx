@@ -11,9 +11,10 @@ export default function Index() {
   const router = useRouter();
 
   useEffect(() => {
+    // Short loading time for app initialization
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 1000);
+    }, 500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -30,7 +31,7 @@ export default function Index() {
         router.replace('/get-started');
       }
     }
-  }, [isSignedIn, isLoaded, isLoading, showOnboarding]);
+  }, [isSignedIn, isLoaded, isLoading, showOnboarding, router]);
 
   // Show loading screen
   if (isLoading || !isLoaded) {
