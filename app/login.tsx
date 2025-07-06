@@ -19,12 +19,33 @@ export default function Login() {
       return;
     }
 
-    if (!isLoaded) {
-      Alert.alert('Loading', 'Please wait while we set up authentication...');
+    setIsLoading(true);
+    
+    // Check for dummy accounts first - bypass authentication
+    if (email === 'user@sajilowaste.com' && password === 'user') {
+      console.log('Dummy user login successful');
+      router.push('/customer-home');
+      setIsLoading(false);
+      return;
+    } else if (email === 'dealer@sajilowaste.com' && password === 'dealer') {
+      console.log('Dummy dealer login successful');
+      router.push('/dealer-home');
+      setIsLoading(false);
+      return;
+    } else if (email === 'rider@sajilowaste.com' && password === 'rider') {
+      console.log('Dummy rider login successful');
+      router.push('/rider-home');
+      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    // For other accounts, use normal Clerk authentication
+    if (!isLoaded) {
+      Alert.alert('Loading', 'Please wait while we set up authentication...');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const result = await signIn.create({
         identifier: email,
@@ -33,8 +54,7 @@ export default function Login() {
 
       if (result.status === 'complete') {
         console.log('Login successful');
-        // Navigate to choose role or main app
-        router.push('/choose-role');
+        router.push('/customer-home'); // Default route for real accounts
       } else {
         Alert.alert('Error', 'Login failed. Please try again.');
       }
@@ -123,9 +143,11 @@ export default function Login() {
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.loginButtonText}>
-              {!isLoaded ? 'Loading...' : 'Sign In'}
-            </Text>
+            <View style={styles.buttonContent}>
+              <Text style={styles.loginButtonText}>
+                {!isLoaded ? 'Loading...' : 'Sign In'}
+              </Text>
+            </View>
           )}
         </TouchableOpacity>
 
@@ -160,6 +182,27 @@ export default function Login() {
         <Text style={styles.footerText}>Don't have an account? </Text>
         <TouchableOpacity onPress={navigateToRegister}>
           <Text style={styles.linkText}>Sign Up</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.debugButtons}>
+        <TouchableOpacity 
+          style={styles.debugButton} 
+          onPress={() => router.push('/customer-home')}
+        >
+          <Text style={styles.debugButtonText}>User</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.debugButton} 
+          onPress={() => router.push('/dealer-home')}
+        >
+          <Text style={styles.debugButtonText}>Dealer</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.debugButton} 
+          onPress={() => router.push('/rider-home')}
+        >
+          <Text style={styles.debugButtonText}>Rider</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -218,8 +261,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   loginButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
+    backgroundColor: '#4CAF50',
+    borderRadius: 25,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
@@ -233,6 +276,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  buttonContent: {
+    alignItems: 'center',
+  },
+  debugText: {
+    color: '#FF0000',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginTop: 4,
+    textAlign: 'center',
   },
   divider: {
     flexDirection: 'row',
@@ -254,7 +307,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 25,
     paddingVertical: 16,
     borderWidth: 1,
     borderColor: '#E0E0E0',
@@ -291,5 +344,26 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#E0E0E0',
+  },
+  debugButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    marginBottom: 20,
+  },
+  debugButton: {
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#FF0000',
+  },
+  debugButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 }); 

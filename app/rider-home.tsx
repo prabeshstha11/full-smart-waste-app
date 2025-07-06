@@ -1,11 +1,11 @@
-import { useSignOut } from '@clerk/clerk-expo';
+import { useClerk } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function RiderHome() {
-  const { signOut } = useSignOut();
+  const { signOut } = useClerk();
 
   const handleLogout = async () => {
     try {
@@ -26,9 +26,9 @@ export default function RiderHome() {
       </View>
       
       <View style={styles.content}>
-        <Text style={styles.welcomeText}>Welcome, Rider!</Text>
+        <Text style={styles.welcomeText}>Hello Rider!</Text>
         <Text style={styles.description}>
-          You can pick up and deliver waste here.
+          Welcome to Sajilo Waste
         </Text>
       </View>
     </View>

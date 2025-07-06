@@ -1,11 +1,11 @@
-import { useSignOut } from '@clerk/clerk-expo';
+import { useClerk } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function DealerHome() {
-  const { signOut } = useSignOut();
+  const { signOut } = useClerk();
 
   const handleLogout = async () => {
     try {
@@ -26,9 +26,9 @@ export default function DealerHome() {
       </View>
       
       <View style={styles.content}>
-        <Text style={styles.welcomeText}>Welcome, Dealer!</Text>
+        <Text style={styles.welcomeText}>Hello Dealer!</Text>
         <Text style={styles.description}>
-          You can buy waste from customers here.
+          Welcome to Sajilo Waste
         </Text>
       </View>
     </View>
