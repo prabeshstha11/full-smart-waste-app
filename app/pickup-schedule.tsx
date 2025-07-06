@@ -646,44 +646,7 @@ export default function PickupSchedule() {
         </View>
       )}
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={[styles.navItem, true && styles.navItemActive]} 
-          onPress={() => router.push('/customer-home')}
-        >
-          <Ionicons 
-            name="home-outline" 
-            size={24} 
-            color="#4CAF50" 
-          />
-          <Text style={[styles.navText, styles.navTextActive]}>Home</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.navItem, false && styles.navItemActive]} 
-          onPress={() => {}}
-        >
-          <Ionicons 
-            name="time-outline" 
-            size={24} 
-            color="#666" 
-          />
-          <Text style={[styles.navText]}>History</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.navItem, false && styles.navItemActive]} 
-          onPress={() => {}}
-        >
-          <Ionicons 
-            name="pulse-outline" 
-            size={24} 
-            color="#666" 
-          />
-          <Text style={[styles.navText]}>Activity</Text>
-        </TouchableOpacity>
-      </View>
+
 
       {/* Date and Time Picker Modals */}
       {renderDatePicker()}
