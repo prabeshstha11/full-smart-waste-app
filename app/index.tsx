@@ -6,12 +6,28 @@ export default function Index() {
   const router = useRouter();
 
   useEffect(() => {
-    console.log('Index: Starting fresh session, going to onboarding');
-    // Go directly to onboarding without any Clerk checks
+    // Short loading time for app initialization
     const timer = setTimeout(() => {
-      console.log('Index: Navigating to onboarding');
-      router.replace('/get-started');
-    }, 500); // Brief 500ms delay to show loading
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (isLoaded && !isLoading) {
+      if (isSignedIn) {
+        // User is signed in, go to hello user page
+        router.replace('/hello-user');
+      } else if (showOnboarding) {
+        // Show onboarding for new users
+        // The onboarding will be shown in the current component
+      } else {
+        // User has seen onboarding, go to get-started
+        router.replace('/get-started');
+      }
+    }
+  }, [isSignedIn, isLoaded, isLoading, showOnboarding, router]);
+
 
     return () => clearTimeout(timer);
   }, [router]);
