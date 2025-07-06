@@ -1,7 +1,11 @@
-import { useSignIn } from '@clerk/clerk-expo';
+import { useOAuth, useSignIn } from '@clerk/clerk-expo';
+import { AntDesign } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignInPage() {
   const [email, setEmail] = useState('');
@@ -9,7 +13,12 @@ export default function SignInPage() {
   const [loading, setLoading] = useState(false);
   
   const { signIn, setActive } = useSignIn();
+  const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
   const router = useRouter();
+
+  useEffect(() => {
+    console.log('SignInPage mounted');
+  }, []);
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -26,7 +35,8 @@ export default function SignInPage() {
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
-        router.push('/home');
+        console.log('User ID:', result.createdSessionId); // This is the session ID
+        router.push('/hello-user');
       } else {
         Alert.alert('Error', 'Something went wrong during sign in');
       }
@@ -34,6 +44,27 @@ export default function SignInPage() {
       Alert.alert('Error', err.message || 'Sign in failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      console.log('Starting Google OAuth flow...');
+      const { createdSessionId, setActive } = await startOAuthFlow();
+      
+      console.log('OAuth result:', { createdSessionId });
+      
+      if (createdSessionId) {
+        await setActive({ session: createdSessionId });
+        console.log('Google Sign In - Session ID:', createdSessionId); // This is the session ID
+        router.push('/hello-user');
+      } else {
+        console.log('No session created from OAuth');
+        Alert.alert('Error', 'Failed to create session from Google OAuth');
+      }
+    } catch (err) {
+      console.error('Google OAuth error:', err);
+      Alert.alert('Google OAuth Error', 'Google sign-in is not configured. Please use email sign-in instead.');
     }
   };
 
@@ -67,6 +98,20 @@ export default function SignInPage() {
           <Text style={styles.buttonText}>
             {loading ? 'Signing In...' : 'Sign In'}
           </Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>OR</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity
+          style={styles.googleButton}
+          onPress={handleGoogleSignIn}
+        >
+          <AntDesign name="google" size={20} color="#4285F4" style={styles.googleIcon} />
+          <Text style={styles.googleButtonText}>Continue with Google</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
@@ -117,6 +162,39 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: '#666',
+    fontSize: 14,
+  },
+  googleButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  googleIcon: {
+    marginRight: 10,
+  },
+  googleButtonText: {
+    color: '#333',
     fontSize: 18,
     fontWeight: 'bold',
   },

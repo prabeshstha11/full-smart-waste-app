@@ -9,7 +9,7 @@ export default function GetStarted() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Image 
-          source={require('../assets/images/splash-icon.png')} 
+          source={require('../assets/images/logo.png')} 
           style={styles.logo}
           resizeMode="contain"
         />

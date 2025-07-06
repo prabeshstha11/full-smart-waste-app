@@ -1,7 +1,8 @@
 import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { UserService } from '../utils/userService';
 
 const roles = [
   {
@@ -30,14 +31,31 @@ export default function ChooseRole() {
   const { user } = useUser();
 
   const handleContinue = async () => {
-    if (selectedRole) {
-      // Save role to user metadata
-      await user?.update({
-        unsafeMetadata: { role: selectedRole },
-      });
-      
-      // Navigate to OTP verification
-      router.push('/otp-verify');
+    if (selectedRole && user) {
+      try {
+        console.log('Saving role to Clerk and database:', selectedRole);
+        
+        // Save role to Clerk metadata
+        await user.update({
+          unsafeMetadata: { role: selectedRole },
+        });
+        
+        // Save role to database
+        await UserService.syncUserToDatabase({
+          id: user.id,
+          emailAddresses: user.emailAddresses,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          unsafeMetadata: { role: selectedRole },
+          role: selectedRole,
+        });
+        
+        console.log('Role saved successfully');
+        router.push('/welcome');
+      } catch (error) {
+        console.error('Error saving role:', error);
+        Alert.alert('Error', 'Failed to save role. Please try again.');
+      }
     }
   };
 

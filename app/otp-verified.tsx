@@ -6,9 +6,9 @@ export default function OTPVerified() {
   const router = useRouter();
 
   useEffect(() => {
-    // Auto-navigate to home after 3 seconds
+    // Auto-navigate to choose role after 3 seconds
     const timer = setTimeout(() => {
-      router.replace('/home');
+      router.replace('/choose-role');
     }, 3000);
 
     return () => clearTimeout(timer);
@@ -21,19 +21,19 @@ export default function OTPVerified() {
           <Text style={styles.checkmark}>✓</Text>
         </View>
         
-        <Text style={styles.title}>Phone Verified!</Text>
+        <Text style={styles.title}>Email Verified!</Text>
         <Text style={styles.subtitle}>
-          Your phone number has been successfully verified
+          Your email address has been successfully verified
         </Text>
         
         <Text style={styles.redirectText}>
-          Redirecting to home page...
+          Redirecting to choose role...
         </Text>
       </View>
 
       <TouchableOpacity
         style={styles.continueButton}
-        onPress={() => router.replace('/home')}
+        onPress={() => router.replace('/choose-role')}
       >
         <Text style={styles.continueButtonText}>Continue Now</Text>
       </TouchableOpacity>

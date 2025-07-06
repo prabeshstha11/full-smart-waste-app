@@ -39,6 +39,7 @@ export default {
     },
     extra: {
       EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_aW5zcGlyZWQtd2FsbGV5ZS04Ni5jbGVyay5hY2NvdW50cy5kZXYk',
+      DATABASE_URL: process.env.DATABASE_URL,
     },
   },
 }; 

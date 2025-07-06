@@ -1,7 +1,8 @@
-import { ClerkProvider, SignedIn, SignedOut } from '@clerk/clerk-expo';
+import { ClerkProvider } from '@clerk/clerk-expo';
 import Constants from 'expo-constants';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
+import DatabaseInitializer from '../components/DatabaseInitializer';
 import SplashAndOnboarding from './SplashAndOnboarding';
 
 // Get Clerk publishable key from environment variables
@@ -25,51 +26,24 @@ export default function RootLayout() {
   }
 
   return (
-    <ClerkProvider 
-      publishableKey={CLERK_PUBLISHABLE_KEY}
-      tokenCache={{
-        async getToken(key) {
-          try {
-            return null;
-          } catch (err) {
-            return null;
-          }
-        },
-        async saveToken(key, token) {
-          try {
-            // Save token logic here if needed
-          } catch (err) {
-            // Handle error
-          }
-        },
-      }}
-    >
-      <SignedIn>
+    <DatabaseInitializer>
+      <ClerkProvider 
+        publishableKey={CLERK_PUBLISHABLE_KEY}
+      >
         <Stack>
-          <Stack.Screen name="home" options={{ headerShown: false }} />
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="dashboard" options={{ headerShown: false }} />
           <Stack.Screen name="get-started" options={{ headerShown: false }} />
           <Stack.Screen name="register" options={{ headerShown: false }} />
           <Stack.Screen name="signin" options={{ headerShown: false }} />
           <Stack.Screen name="choose-role" options={{ headerShown: false }} />
           <Stack.Screen name="otp-verify" options={{ headerShown: false }} />
           <Stack.Screen name="otp-verified" options={{ headerShown: false }} />
+          <Stack.Screen name="hello-user" options={{ headerShown: false }} />
+          <Stack.Screen name="test-user" options={{ headerShown: false }} />
+          <Stack.Screen name="welcome" options={{ headerShown: false }} />
         </Stack>
-      </SignedIn>
-      
-      <SignedOut>
-        {showOnboarding ? (
-          <SplashAndOnboarding onComplete={() => setShowOnboarding(false)} />
-        ) : (
-          <Stack>
-            <Stack.Screen name="get-started" options={{ headerShown: false }} />
-            <Stack.Screen name="register" options={{ headerShown: false }} />
-            <Stack.Screen name="signin" options={{ headerShown: false }} />
-            <Stack.Screen name="choose-role" options={{ headerShown: false }} />
-            <Stack.Screen name="otp-verify" options={{ headerShown: false }} />
-            <Stack.Screen name="otp-verified" options={{ headerShown: false }} />
-          </Stack>
-        )}
-      </SignedOut>
-    </ClerkProvider>
+      </ClerkProvider>
+    </DatabaseInitializer>
   );
 }
