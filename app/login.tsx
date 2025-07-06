@@ -20,7 +20,7 @@ export default function Login() {
     }
 
     if (!isLoaded) {
-      Alert.alert('Error', 'Authentication not ready');
+      Alert.alert('Loading', 'Please wait while we set up authentication...');
       return;
     }
 
@@ -48,7 +48,7 @@ export default function Login() {
 
   const handleGoogleSignIn = async () => {
     if (!isLoaded) {
-      Alert.alert('Error', 'Authentication not ready');
+      Alert.alert('Loading', 'Please wait while we set up authentication...');
       return;
     }
 
@@ -115,11 +115,17 @@ export default function Login() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={isLoading}>
+        <TouchableOpacity 
+          style={[styles.loginButton, (!isLoaded || isLoading) && styles.disabledButton]} 
+          onPress={handleLogin} 
+          disabled={!isLoaded || isLoading}
+        >
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.loginButtonText}>Sign In</Text>
+            <Text style={styles.loginButtonText}>
+              {!isLoaded ? 'Loading...' : 'Sign In'}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -129,7 +135,11 @@ export default function Login() {
           <View style={styles.dividerLine} />
         </View>
 
-        <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignIn} disabled={isGoogleLoading}>
+        <TouchableOpacity 
+          style={[styles.googleButton, (!isLoaded || isGoogleLoading) && styles.disabledButton]} 
+          onPress={handleGoogleSignIn} 
+          disabled={!isLoaded || isGoogleLoading}
+        >
           {isGoogleLoading ? (
             <ActivityIndicator color="#333" />
           ) : (
@@ -138,7 +148,9 @@ export default function Login() {
                 source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
                 style={styles.googleIcon}
               />
-              <Text style={styles.googleButtonText}>Sign in with Google</Text>
+              <Text style={styles.googleButtonText}>
+                {!isLoaded ? 'Loading...' : 'Sign in with Google'}
+              </Text>
             </>
           )}
         </TouchableOpacity>
@@ -206,7 +218,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   loginButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#007AFF',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -273,8 +285,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   linkText: {
-    color: '#4CAF50',
+    color: '#007AFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: '#E0E0E0',
   },
 }); 

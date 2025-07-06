@@ -55,7 +55,7 @@ export default function Register() {
     }
 
     if (!isLoaded) {
-      Alert.alert('Error', 'Authentication not ready');
+      Alert.alert('Loading', 'Please wait while we set up authentication...');
       return;
     }
 
@@ -84,7 +84,7 @@ export default function Register() {
 
   const handleGoogleSignUp = async () => {
     if (!isLoaded) {
-      Alert.alert('Error', 'Authentication not ready');
+      Alert.alert('Loading', 'Please wait while we set up authentication...');
       return;
     }
 
@@ -199,11 +199,17 @@ export default function Register() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.registerButton} onPress={handleRegister} disabled={isLoading}>
+        <TouchableOpacity 
+          style={[styles.registerButton, (!isLoaded || isLoading) && styles.disabledButton]} 
+          onPress={handleRegister} 
+          disabled={!isLoaded || isLoading}
+        >
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.registerButtonText}>Sign Up</Text>
+            <Text style={styles.registerButtonText}>
+              {!isLoaded ? 'Loading...' : 'Sign Up'}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -213,7 +219,11 @@ export default function Register() {
           <View style={styles.dividerLine} />
         </View>
 
-        <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignUp} disabled={isGoogleLoading}>
+        <TouchableOpacity 
+          style={[styles.googleButton, (!isLoaded || isGoogleLoading) && styles.disabledButton]} 
+          onPress={handleGoogleSignUp} 
+          disabled={!isLoaded || isGoogleLoading}
+        >
           {isGoogleLoading ? (
             <ActivityIndicator color="#333" />
           ) : (
@@ -222,7 +232,9 @@ export default function Register() {
                 source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
                 style={styles.googleIcon}
               />
-              <Text style={styles.googleButtonText}>Sign up with Google</Text>
+              <Text style={styles.googleButtonText}>
+                {!isLoaded ? 'Loading...' : 'Sign up with Google'}
+              </Text>
             </>
           )}
         </TouchableOpacity>
@@ -320,7 +332,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   registerButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#007AFF',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -387,8 +399,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   linkText: {
-    color: '#4CAF50',
+    color: '#007AFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: '#E0E0E0',
   },
 }); 

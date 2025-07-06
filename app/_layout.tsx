@@ -1,7 +1,7 @@
 import { ClerkProvider } from '@clerk/clerk-expo';
 import { Stack } from 'expo-router';
 import React from 'react';
-import { tokenCache } from '../utils/cache';
+import { tokenCache } from '@/utils/cache';
 
 const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
