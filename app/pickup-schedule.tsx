@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { createPickupRequest } from '../utils/database';
 
 export default function PickupSchedule() {
@@ -15,6 +16,8 @@ export default function PickupSchedule() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<string>('Getting location...');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [cloudinaryUrls, setCloudinaryUrls] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [quantity, setQuantity] = useState<{[key: string]: number}>({});
   const [showDateModal, setShowDateModal] = useState(false);
   const [showTimeModal, setShowTimeModal] = useState(false);
@@ -129,6 +132,28 @@ export default function PickupSchedule() {
     } else {
       router.back();
     }
+  };
+
+  // Simple Cloudinary upload function with your keys
+  const uploadToCloudinary = async (imageUri: string): Promise<string> => {
+    const CLOUD_NAME = 'dl25bnqfx';
+    const UPLOAD_PRESET = 'ml_default'; // Use default unsigned preset
+
+    const data = new FormData();
+    data.append('file', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'upload.jpg',
+    } as any);
+    data.append('upload_preset', UPLOAD_PRESET);
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: data,
+    });
+
+    const result = await res.json();
+    return result.secure_url;
   };
 
   const renderStepContent = () => {
@@ -524,21 +549,38 @@ export default function PickupSchedule() {
         return;
       }
 
-      const pickupRequest = {
-        id: `pickup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        user_id: 'dummy_customer', // Using dummy user ID for now
-        selected_items: selectedItems,
-        quantities: quantity,
-        pickup_date: pickupDate,
-        pickup_time: pickupTime,
-        location: currentLocation,
-        images: selectedImages,
-      };
+      setUploading(true);
+      
+      try {
+        // Upload images to Cloudinary (like your example)
+        console.log('Uploading images to Cloudinary...');
+        const uploadPromises = selectedImages.map(imageUri => uploadToCloudinary(imageUri));
+        const urls = await Promise.all(uploadPromises);
+        
+        setCloudinaryUrls(urls);
+        console.log('✅ Images uploaded to Cloudinary:', urls);
 
-      console.log('Creating pickup request:', pickupRequest);
-      await createPickupRequest(pickupRequest);
-      Alert.alert('Success', 'Pickup request created successfully!');
-      router.push('/customer-home');
+        const pickupRequest = {
+          id: `pickup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          user_id: 'dummy_user_001', // Use valid dummy user ID
+          selected_items: selectedItems,
+          quantities: quantity,
+          pickup_date: pickupDate,
+          pickup_time: pickupTime,
+          location: currentLocation,
+          images: urls, // Store Cloudinary URLs in images field
+        };
+
+        console.log('Creating pickup request with Cloudinary URLs:', pickupRequest);
+        await createPickupRequest(pickupRequest);
+        Alert.alert('Success', 'Pickup request created successfully!');
+        router.push('/customer-home');
+      } catch (uploadError) {
+        console.error('❌ Upload error:', uploadError);
+        Alert.alert('Error', 'Failed to upload images. Please try again.');
+      } finally {
+        setUploading(false);
+      }
     } catch (error) {
       console.error('Error creating pickup request:', error);
       Alert.alert('Error', 'Failed to create pickup request. Please try again.');
@@ -638,10 +680,18 @@ export default function PickupSchedule() {
       {currentStep === 3 && (
         <View style={styles.bottomButtonContainer}>
           <TouchableOpacity 
-            style={styles.confirmButton} 
+            style={[styles.confirmButton, uploading && styles.confirmButtonDisabled]} 
             onPress={handleConfirm}
+            disabled={uploading}
           >
-            <Text style={styles.confirmButtonText}>Confirm Pickup</Text>
+            {uploading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={styles.confirmButtonText}>Uploading...</Text>
+              </View>
+            ) : (
+              <Text style={styles.confirmButtonText}>Confirm Pickup</Text>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -1129,6 +1179,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  confirmButtonDisabled: {
+    opacity: 0.6,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bottomNav: {
     flexDirection: 'row',
