@@ -105,7 +105,7 @@ const SplashAndOnboarding = ({ onComplete }: SplashAndOnboardingProps) => {
               if (slideIndex < slides.length - 1) {
                 setSlideIndex(slideIndex + 1);
               } else {
-                // Complete onboarding and show home screen
+                // Complete onboarding and show get-started page
                 onComplete();
               }
             }}
