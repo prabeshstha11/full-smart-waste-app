@@ -1,13 +1,8 @@
-import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import SplashAndOnboarding from './SplashAndOnboarding';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 export default function Index() {
-  const [showOnboarding, setShowOnboarding] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-  const { isSignedIn, isLoaded } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -33,24 +28,14 @@ export default function Index() {
     }
   }, [isSignedIn, isLoaded, isLoading, showOnboarding, router]);
 
-  // Show loading screen
-  if (isLoading || !isLoaded) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
 
-  // Show onboarding for new users who are not signed in
-  if (!isSignedIn && showOnboarding) {
-    return <SplashAndOnboarding onComplete={() => setShowOnboarding(false)} />;
-  }
+    return () => clearTimeout(timer);
+  }, [router]);
 
-  // Show loading while redirecting
   return (
     <View style={styles.container}>
-      <Text style={styles.loadingText}>Redirecting...</Text>
+      <ActivityIndicator size="large" color="#4caf50" />
+      <Text style={styles.loadingText}>Starting fresh session...</Text>
     </View>
   );
 }
@@ -60,10 +45,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
   },
   loadingText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#666',
+    marginTop: 16,
   },
 }); 

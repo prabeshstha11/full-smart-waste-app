@@ -1,12 +1,8 @@
-import { useOAuth, useSignUp } from '@clerk/clerk-expo';
-import { AntDesign } from '@expo/vector-icons';
+import { useSignUp } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { UserService } from '../utils/userService';
-
-WebBrowser.maybeCompleteAuthSession();
 
 export default function Register() {
   const [email, setEmail] = useState('');
@@ -15,13 +11,25 @@ export default function Register() {
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signUp, setActive } = useSignUp();
-  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+  const signUpHook = useSignUp();
   const router = useRouter();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Register: useSignUp hook result:', signUpHook);
+    console.log('Register: signUp object:', signUpHook?.signUp);
+    console.log('Register: setActive function:', signUpHook?.setActive);
+  }, [signUpHook]);
 
   const handleSignUp = async () => {
     if (!email || !password || !firstName || !lastName) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (!signUpHook?.signUp) {
+      console.error('Register: signUp is undefined!');
+      Alert.alert('Error', 'SignUp service not available. Please try again.');
       return;
     }
 
@@ -31,7 +39,7 @@ export default function Register() {
       console.log('Input data:', { email, firstName, lastName });
       
       // Step 1: Create the user
-      const result = await signUp.create({
+      const result = await signUpHook.signUp.create({
         emailAddress: email,
         password,
         unsafeMetadata: {
@@ -49,8 +57,10 @@ export default function Register() {
       // Step 2: Handle different status scenarios
       if (result.status === 'complete') {
         // User created successfully with session
-        await setActive({ session: result.createdSessionId });
-        console.log('Session activated successfully');
+        if (signUpHook.setActive) {
+          await signUpHook.setActive({ session: result.createdSessionId });
+          console.log('Session activated successfully');
+        }
         
         // Sync to database
         await syncUserToDatabase(result.createdUserId!, email, firstName, lastName, 'customer');
@@ -65,7 +75,7 @@ export default function Register() {
         if (result.unverifiedFields?.includes('email_address')) {
           try {
             console.log('Preparing email verification...');
-            await signUp.prepareEmailAddressVerification();
+            await signUpHook.signUp.prepareEmailAddressVerification();
             console.log('Email verification prepared successfully');
             router.push('/otp-verify');
           } catch (verificationError) {
@@ -98,8 +108,8 @@ export default function Register() {
       await syncUserToDatabase(userId, email, firstName, lastName, 'customer');
       
       // Try to set session if available
-      if (result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
+      if (result.createdSessionId && signUpHook.setActive) {
+        await signUpHook.setActive({ session: result.createdSessionId });
       }
       
       Alert.alert('Success', 'Registration completed! Please check your email to verify your account.');
@@ -125,33 +135,6 @@ export default function Register() {
     } catch (error) {
       console.error('Error syncing user to database:', error);
       // Don't fail registration if database sync fails
-    }
-  };
-
-  const handleGoogleSignUp = async () => {
-    try {
-      console.log('Starting Google OAuth flow...');
-      const { createdSessionId, signUp: googleSignUp, setActive: setGoogleActive } = await startOAuthFlow();
-      if (createdSessionId) {
-        await setGoogleActive({ session: createdSessionId });
-        // Sync Google user to database
-        if (googleSignUp?.createdUserId) {
-          await UserService.syncUserToDatabase({
-            id: googleSignUp.createdUserId,
-            emailAddresses: [{ emailAddress: googleSignUp.emailAddress || '' }],
-            firstName: googleSignUp.firstName || '',
-            lastName: googleSignUp.lastName || '',
-            unsafeMetadata: { firstName: googleSignUp.firstName || '', lastName: googleSignUp.lastName || '' },
-            role: 'customer',
-          });
-        }
-        router.push('/choose-role');
-      } else {
-        Alert.alert('Error', 'Failed to create session from Google OAuth');
-      }
-    } catch (err) {
-      console.error('Google OAuth error:', err);
-      Alert.alert('Google OAuth Error', 'Google sign-in failed.');
     }
   };
 
@@ -201,14 +184,6 @@ export default function Register() {
           <Text style={styles.buttonText}>
             {loading ? 'Creating Account...' : 'Create Account'}
           </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.googleButton}
-          onPress={handleGoogleSignUp}
-        >
-          <AntDesign name="google" size={20} color="#4285F4" style={styles.googleIcon} />
-          <Text style={styles.googleButtonText}>Continue with Google</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -270,25 +245,5 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#4caf50',
     fontSize: 16,
-  },
-
-  googleButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 16,
-  },
-  googleIcon: {
-    marginRight: 10,
-  },
-  googleButtonText: {
-    color: '#333',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
 }); 

@@ -1,24 +1,30 @@
-import { useOAuth, useSignIn } from '@clerk/clerk-expo';
-import { AntDesign } from '@expo/vector-icons';
+import { useSignIn } from '@clerk/clerk-expo';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+    ActivityIndicator,
+    Alert,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
-WebBrowser.maybeCompleteAuthSession();
-
-export default function SignInPage() {
+export default function SignIn() {
+  const signInHook = useSignIn();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const { signIn, setActive } = useSignIn();
-  const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
-  const router = useRouter();
 
+  // Debug logging
   useEffect(() => {
-    console.log('SignInPage mounted');
-  }, []);
+    console.log('SignIn: useSignIn hook result:', signInHook);
+    console.log('SignIn: signIn object:', signInHook?.signIn);
+    console.log('SignIn: setActive function:', signInHook?.setActive);
+  }, [signInHook]);
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -26,99 +32,101 @@ export default function SignInPage() {
       return;
     }
 
+    if (!signInHook?.signIn) {
+      console.error('SignIn: signIn is undefined!');
+      Alert.alert('Error', 'SignIn service not available. Please try again.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const result = await signIn.create({
+      console.log('SignIn: Attempting to sign in with email:', email);
+      const result = await signInHook.signIn.create({
         identifier: email,
         password,
       });
 
+      console.log('SignIn: Sign in result status:', result.status);
       if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId });
-        console.log('User ID:', result.createdSessionId); // This is the session ID
-        router.push('/hello-user');
+        if (signInHook.setActive) {
+          await signInHook.setActive({ session: result.createdSessionId });
+          console.log('SignIn: Sign in successful, navigating to welcome');
+        }
+        Alert.alert('Success', 'Signed in successfully!');
+        router.replace('/welcome');
       } else {
-        Alert.alert('Error', 'Something went wrong during sign in');
+        Alert.alert('Error', 'Sign in failed. Please try again.');
       }
-    } catch (err) {
-      Alert.alert('Error', err.message || 'Sign in failed');
+    } catch (error: any) {
+      console.error('SignIn: Sign in error:', error);
+      Alert.alert('Error', error.errors?.[0]?.message || 'Sign in failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    try {
-      console.log('Starting Google OAuth flow...');
-      const { createdSessionId, setActive } = await startOAuthFlow();
-      
-      console.log('OAuth result:', { createdSessionId });
-      
-      if (createdSessionId) {
-        await setActive({ session: createdSessionId });
-        console.log('Google Sign In - Session ID:', createdSessionId); // This is the session ID
-        router.push('/hello-user');
-      } else {
-        console.log('No session created from OAuth');
-        Alert.alert('Error', 'Failed to create session from Google OAuth');
-      }
-    } catch (err) {
-      console.error('Google OAuth error:', err);
-      Alert.alert('Google OAuth Error', 'Google sign-in is not configured. Please use email sign-in instead.');
-    }
-  };
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Sign In</Text>
-      
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-        
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSignIn}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Signing In...' : 'Sign In'}
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.header}>
+        <Ionicons name="log-in" size={80} color="#4caf50" />
+        <Text style={styles.title}>Welcome Back!</Text>
+        <Text style={styles.subtitle}>Sign in to your account</Text>
+      </View>
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR</Text>
-          <View style={styles.dividerLine} />
+      <View style={styles.form}>
+        <View style={styles.inputContainer}>
+          <Ionicons name="mail-outline" size={20} color="#666" />
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Ionicons name="lock-closed-outline" size={20} color="#666" />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
         </View>
 
         <TouchableOpacity
-          style={styles.googleButton}
-          onPress={handleGoogleSignIn}
+          style={[styles.signInButton, loading && styles.signInButtonDisabled]}
+          onPress={handleSignIn}
+          disabled={loading}
         >
-          <AntDesign name="google" size={20} color="#4285F4" style={styles.googleIcon} />
-          <Text style={styles.googleButtonText}>Continue with Google</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Ionicons name="log-in" size={20} color="#fff" />
+              <Text style={styles.signInButtonText}>Sign In</Text>
+            </>
+          )}
         </TouchableOpacity>
-        
+
         <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => router.push('/register')}
+          style={styles.forgotPasswordButton}
+          onPress={() => Alert.alert('Info', 'Password reset feature coming soon!')}
         >
-          <Text style={styles.linkText}>Don't have an account? Create Account</Text>
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Don't have an account? </Text>
+        <TouchableOpacity onPress={() => router.push('/register')}>
+          <Text style={styles.signUpLink}>Sign Up</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -128,82 +136,95 @@ export default function SignInPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
     padding: 20,
-    justifyContent: 'center',
+  },
+  header: {
+    alignItems: 'center',
+    marginTop: 80,
+    marginBottom: 40,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#333',
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
-    marginBottom: 40,
   },
   form: {
-    gap: 16,
+    marginBottom: 30,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    backgroundColor: '#f9f9f9',
-  },
-  button: {
-    backgroundColor: '#4caf50',
+    flex: 1,
     paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: '#333',
   },
-  buttonDisabled: {
+  signInButton: {
+    backgroundColor: '#4caf50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  signInButtonDisabled: {
     backgroundColor: '#ccc',
   },
-  buttonText: {
+  signInButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+    marginLeft: 8,
   },
-  divider: {
-    flexDirection: 'row',
+  forgotPasswordButton: {
     alignItems: 'center',
-    marginVertical: 20,
+    paddingVertical: 8,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#ddd',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#666',
-    fontSize: 14,
-  },
-  googleButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  googleIcon: {
-    marginRight: 10,
-  },
-  googleButtonText: {
-    color: '#333',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  linkButton: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  linkText: {
+  forgotPasswordText: {
     color: '#4caf50',
     fontSize: 16,
+    fontWeight: '500',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 'auto',
+    marginBottom: 40,
+  },
+  footerText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  signUpLink: {
+    fontSize: 16,
+    color: '#4caf50',
+    fontWeight: 'bold',
   },
 }); 
