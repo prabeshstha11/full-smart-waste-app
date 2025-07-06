@@ -1,11 +1,12 @@
+import { tokenCache } from '@/utils/cache';
 import { ClerkProvider } from '@clerk/clerk-expo';
 import { Stack } from 'expo-router';
 import React from 'react';
-import { tokenCache } from '@/utils/cache';
 
 const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 if (!CLERK_PUBLISHABLE_KEY) {
+  console.log(CLERK_PUBLISHABLE_KEY);
   throw new Error("Missing Publishable Key");
 }
 
