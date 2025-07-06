@@ -15,7 +15,7 @@ if (DATABASE_URL) {
 
 // User interface
 export interface User {
-  id: string; // Clerk user ID
+  id: string; // User ID
   email: string;
   first_name: string;
   last_name: string;
@@ -53,6 +53,14 @@ export interface Transaction {
   status: 'pending' | 'accepted' | 'picked_up' | 'completed';
   created_at: Date;
   updated_at: Date;
+}
+
+// Test post interface
+export interface TestPost {
+  id: string;
+  posted_by: string; // email of the user who posted
+  message: string;
+  created_at: Date;
 }
 
 // Initialize database tables
@@ -115,6 +123,16 @@ export async function initializeDatabase() {
         FOREIGN KEY (customer_id) REFERENCES users(id),
         FOREIGN KEY (dealer_id) REFERENCES users(id),
         FOREIGN KEY (rider_id) REFERENCES users(id)
+      )
+    `;
+
+    // Create test_posts table if it doesn't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS test_posts (
+        id VARCHAR(255) PRIMARY KEY,
+        posted_by VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
     
@@ -449,6 +467,123 @@ export async function getTransactionsByUser(userId: string): Promise<Transaction
     return result as Transaction[];
   } catch (error) {
     console.error('Error getting transactions by user:', error);
+    throw error;
+  }
+}
+
+// Create dummy users for development
+export async function createDummyUsers() {
+  try {
+    if (!sql) {
+      console.log('Database not configured, skipping dummy user creation');
+      return;
+    }
+
+    const dummyUsers = [
+      {
+        id: 'dummy_user_001',
+        email: 'user@sajilowaste.com',
+        first_name: 'User',
+        last_name: 'Test',
+        role: 'customer'
+      },
+      {
+        id: 'dummy_dealer_001',
+        email: 'dealer@sajilowaste.com',
+        first_name: 'Dealer',
+        last_name: 'Test',
+        role: 'dealer'
+      },
+      {
+        id: 'dummy_rider_001',
+        email: 'rider@sajilowaste.com',
+        first_name: 'Rider',
+        last_name: 'Test',
+        role: 'rider'
+      }
+    ];
+
+    for (const user of dummyUsers) {
+      await sql`
+        INSERT INTO users (id, email, first_name, last_name, role, created_at, updated_at)
+        VALUES (${user.id}, ${user.email}, ${user.first_name}, ${user.last_name}, ${user.role}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (id) 
+        DO UPDATE SET 
+          email = EXCLUDED.email,
+          first_name = EXCLUDED.first_name,
+          last_name = EXCLUDED.last_name,
+          role = EXCLUDED.role,
+          updated_at = CURRENT_TIMESTAMP
+      `;
+    }
+    
+    console.log('Dummy users created successfully');
+  } catch (error) {
+    console.error('Error creating dummy users:', error);
+  }
+}
+
+
+
+// Get user role by email (for dummy accounts)
+export async function getUserRoleByEmail(email: string): Promise<string | null> {
+  try {
+    if (!sql) {
+      console.log('Database not configured, returning null role');
+      return null;
+    }
+
+    const result = await sql`
+      SELECT role FROM users WHERE email = ${email}
+    `;
+    
+    return result[0]?.role || null;
+  } catch (error) {
+    console.error('Error getting user role by email:', error);
+    return null;
+  }
+}
+
+// Create a test post
+export async function createTestPost(postData: {
+  id: string;
+  posted_by: string;
+  message: string;
+}): Promise<TestPost> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      INSERT INTO test_posts (id, posted_by, message)
+      VALUES (${postData.id}, ${postData.posted_by}, ${postData.message})
+      RETURNING *
+    `;
+    
+    console.log('Test post created successfully:', result[0]);
+    return result[0] as TestPost;
+  } catch (error) {
+    console.error('Error creating test post:', error);
+    throw error;
+  }
+}
+
+// Get all test posts
+export async function getAllTestPosts(): Promise<TestPost[]> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      SELECT * FROM test_posts 
+      ORDER BY created_at DESC
+    `;
+    
+    return result as TestPost[];
+  } catch (error) {
+    console.error('Error getting all test posts:', error);
     throw error;
   }
 } 

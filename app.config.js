@@ -44,7 +44,6 @@ export default {
       typedRoutes: true,
     },
     extra: {
-      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
       DATABASE_URL: process.env.DATABASE_URL,
     },
   },

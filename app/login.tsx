@@ -1,17 +1,13 @@
-import { useSignIn } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
-  const { signIn, isLoaded } = useSignIn();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -21,7 +17,7 @@ export default function Login() {
 
     setIsLoading(true);
     
-    // Check for dummy accounts first - bypass authentication
+    // Check for dummy accounts
     if (email === 'user@sajilowaste.com' && password === 'user') {
       console.log('Dummy user login successful');
       router.push('/customer-home');
@@ -37,54 +33,11 @@ export default function Login() {
       router.push('/rider-home');
       setIsLoading(false);
       return;
+    } else {
+      Alert.alert('Error', 'Invalid credentials. Please use the dummy accounts provided.');
     }
-
-    // For other accounts, use normal Clerk authentication
-    if (!isLoaded) {
-      Alert.alert('Loading', 'Please wait while we set up authentication...');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const result = await signIn.create({
-        identifier: email,
-        password: password,
-      });
-
-      if (result.status === 'complete') {
-        console.log('Login successful');
-        router.push('/customer-home'); // Default route for real accounts
-      } else {
-        Alert.alert('Error', 'Login failed. Please try again.');
-      }
-    } catch (error: any) {
-      console.error('Login error:', error);
-      Alert.alert('Error', error.errors?.[0]?.message || 'Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    if (!isLoaded) {
-      Alert.alert('Loading', 'Please wait while we set up authentication...');
-      return;
-    }
-
-    setIsGoogleLoading(true);
-    try {
-      const result = await signIn.authenticateWithRedirect({
-        strategy: 'oauth_google',
-        redirectUrl: '/choose-role',
-        redirectUrlComplete: '/choose-role',
-      });
-    } catch (error: any) {
-      console.error('Google sign in error:', error);
-      Alert.alert('Error', 'Google sign in failed. Please try again.');
-    } finally {
-      setIsGoogleLoading(false);
-    }
+    
+    setIsLoading(false);
   };
 
   const navigateToRegister = () => {
@@ -136,17 +89,15 @@ export default function Login() {
         </View>
 
         <TouchableOpacity 
-          style={[styles.loginButton, (!isLoaded || isLoading) && styles.disabledButton]} 
+          style={[styles.loginButton, isLoading && styles.disabledButton]} 
           onPress={handleLogin} 
-          disabled={!isLoaded || isLoading}
+          disabled={isLoading}
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <View style={styles.buttonContent}>
-              <Text style={styles.loginButtonText}>
-                {!isLoaded ? 'Loading...' : 'Sign In'}
-              </Text>
+              <Text style={styles.loginButtonText}>Sign In</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -157,52 +108,42 @@ export default function Login() {
           <View style={styles.dividerLine} />
         </View>
 
-        <TouchableOpacity 
-          style={[styles.googleButton, (!isLoaded || isGoogleLoading) && styles.disabledButton]} 
-          onPress={handleGoogleSignIn} 
-          disabled={!isLoaded || isGoogleLoading}
-        >
-          {isGoogleLoading ? (
-            <ActivityIndicator color="#333" />
-          ) : (
-            <>
-              <Image 
-                source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
-                style={styles.googleIcon}
-              />
-              <Text style={styles.googleButtonText}>
-                {!isLoaded ? 'Loading...' : 'Sign in with Google'}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <View style={styles.debugSection}>
+          <Text style={styles.debugTitle}>Quick Login (Debug)</Text>
+          <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={() => {
+              setEmail('user@sajilowaste.com');
+              setPassword('user');
+            }}
+          >
+            <Text style={styles.debugButtonText}>User Account</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={() => {
+              setEmail('dealer@sajilowaste.com');
+              setPassword('dealer');
+            }}
+          >
+            <Text style={styles.debugButtonText}>Dealer Account</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={() => {
+              setEmail('rider@sajilowaste.com');
+              setPassword('rider');
+            }}
+          >
+            <Text style={styles.debugButtonText}>Rider Account</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Don't have an account? </Text>
         <TouchableOpacity onPress={navigateToRegister}>
           <Text style={styles.linkText}>Sign Up</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.debugButtons}>
-        <TouchableOpacity 
-          style={styles.debugButton} 
-          onPress={() => router.push('/customer-home')}
-        >
-          <Text style={styles.debugButtonText}>User</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.debugButton} 
-          onPress={() => router.push('/dealer-home')}
-        >
-          <Text style={styles.debugButtonText}>Dealer</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.debugButton} 
-          onPress={() => router.push('/rider-home')}
-        >
-          <Text style={styles.debugButtonText}>Rider</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -213,12 +154,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    padding: 20,
   },
   header: {
     alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 40,
+    paddingTop: 100,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 32,
@@ -229,10 +169,9 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#666',
-    textAlign: 'center',
   },
   form: {
-    flex: 1,
+    paddingHorizontal: 20,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -241,51 +180,41 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 16,
-    paddingVertical: 4,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   inputIcon: {
     marginRight: 12,
   },
   input: {
     flex: 1,
+    height: 56,
     fontSize: 16,
     color: '#333',
-    paddingVertical: 16,
   },
   eyeIcon: {
-    padding: 4,
+    padding: 8,
   },
   loginButton: {
     backgroundColor: '#4CAF50',
-    borderRadius: 25,
-    paddingVertical: 16,
+    borderRadius: 12,
+    height: 56,
+    justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    marginBottom: 24,
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   loginButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  buttonContent: {
-    alignItems: 'center',
-  },
-  debugText: {
-    color: '#FF0000',
-    fontSize: 10,
-    fontWeight: 'bold',
-    marginTop: 4,
-    textAlign: 'center',
   },
   divider: {
     flexDirection: 'row',
@@ -295,75 +224,54 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#e0e0e0',
   },
   dividerText: {
     marginHorizontal: 16,
     color: '#666',
     fontSize: 14,
   },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  debugSection: {
     backgroundColor: '#fff',
-    borderRadius: 25,
-    paddingVertical: 16,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderColor: '#ffcdd2',
   },
-  googleIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 12,
-  },
-  googleButtonText: {
-    color: '#333',
+  debugTitle: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: 'bold',
+    color: '#d32f2f',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  debugButton: {
+    backgroundColor: '#d32f2f',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  debugButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    paddingBottom: 40,
   },
   footerText: {
     color: '#666',
     fontSize: 16,
   },
   linkText: {
-    color: '#007AFF',
+    color: '#4CAF50',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  disabledButton: {
-    backgroundColor: '#E0E0E0',
-  },
-  debugButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    marginBottom: 20,
-  },
-  debugButton: {
-    backgroundColor: '#FF6B6B',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#FF0000',
-  },
-  debugButtonText: {
-    color: '#fff',
-    fontSize: 14,
     fontWeight: 'bold',
   },
 }); 

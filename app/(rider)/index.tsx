@@ -1,25 +1,16 @@
-import { useClerk, useUser } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function RiderHome() {
-  const { user } = useUser();
-  const { signOut } = useClerk();
-
   const handleSignOut = async () => {
-    try {
-      await signOut();
-      router.push('/login');
-    } catch (err) {
-      console.error('Sign out error:', err);
-    }
+    router.push('/login');
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Hello Rider!</Text>
       <Text style={styles.subtitle}>Welcome to Sajilo Waste</Text>
-      <Text style={styles.email}>{user?.emailAddresses[0]?.emailAddress}</Text>
+      <Text style={styles.email}>rider@sajilowaste.com</Text>
       
       <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Sign Out</Text>

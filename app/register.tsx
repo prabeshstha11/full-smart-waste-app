@@ -1,4 +1,3 @@
-import { useSignUp } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -12,11 +11,8 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
-  const { signUp, isLoaded } = useSignUp();
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -54,53 +50,24 @@ export default function Register() {
       return;
     }
 
-    if (!isLoaded) {
-      Alert.alert('Loading', 'Please wait while we set up authentication...');
-      return;
-    }
-
     setIsLoading(true);
-    try {
-      const result = await signUp.create({
-        emailAddress: email,
-        password: password,
-        firstName: name,
-      });
-
-      if (result.status === 'complete') {
-        console.log('Registration successful');
-        // Navigate to choose role or main app
-        router.push('/choose-role');
-      } else {
-        Alert.alert('Error', 'Registration failed. Please try again.');
-      }
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      Alert.alert('Error', error.errors?.[0]?.message || 'Registration failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoogleSignUp = async () => {
-    if (!isLoaded) {
-      Alert.alert('Loading', 'Please wait while we set up authentication...');
-      return;
-    }
-
-    setIsGoogleLoading(true);
-    try {
-      const result = await signUp.authenticateWithRedirect({
-        strategy: 'oauth_google',
-        redirectUrl: '/choose-role',
-        redirectUrlComplete: '/choose-role',
-      });
-    } catch (error: any) {
-      console.error('Google sign up error:', error);
-      Alert.alert('Error', 'Google sign up failed. Please try again.');
-    } finally {
-      setIsGoogleLoading(false);
-    }
+    
+    // Simulate registration process
+    setTimeout(() => {
+      Alert.alert(
+        'Registration', 
+        'Registration functionality will be implemented later. For now, please use the dummy accounts on the login page.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setIsLoading(false);
+              router.push('/login');
+            }
+          }
+        ]
+      );
+    }, 1000);
   };
 
   const navigateToLogin = () => {
@@ -200,16 +167,14 @@ export default function Register() {
         </View>
 
         <TouchableOpacity 
-          style={[styles.registerButton, (!isLoaded || isLoading) && styles.disabledButton]} 
+          style={[styles.registerButton, isLoading && styles.disabledButton]} 
           onPress={handleRegister} 
-          disabled={!isLoaded || isLoading}
+          disabled={isLoading}
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.registerButtonText}>
-              {!isLoaded ? 'Loading...' : 'Sign Up'}
-            </Text>
+            <Text style={styles.registerButtonText}>Sign Up</Text>
           )}
         </TouchableOpacity>
 
@@ -220,23 +185,16 @@ export default function Register() {
         </View>
 
         <TouchableOpacity 
-          style={[styles.googleButton, (!isLoaded || isGoogleLoading) && styles.disabledButton]} 
-          onPress={handleGoogleSignUp} 
-          disabled={!isLoaded || isGoogleLoading}
+          style={styles.googleButton} 
+          onPress={() => {
+            Alert.alert('Google Sign Up', 'Google authentication will be implemented later.');
+          }}
         >
-          {isGoogleLoading ? (
-            <ActivityIndicator color="#333" />
-          ) : (
-            <>
-              <Image 
-                source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
-                style={styles.googleIcon}
-              />
-              <Text style={styles.googleButtonText}>
-                {!isLoaded ? 'Loading...' : 'Sign up with Google'}
-              </Text>
-            </>
-          )}
+          <Image 
+            source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+            style={styles.googleIcon}
+          />
+          <Text style={styles.googleButtonText}>Sign up with Google</Text>
         </TouchableOpacity>
       </View>
 
@@ -254,12 +212,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    padding: 20,
   },
   header: {
     alignItems: 'center',
-    marginTop: 40,
-    marginBottom: 30,
+    paddingTop: 80,
+    paddingBottom: 20,
   },
   title: {
     fontSize: 32,
@@ -270,34 +227,32 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#666',
-    textAlign: 'center',
   },
   form: {
+    paddingHorizontal: 20,
     flex: 1,
   },
   profileSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   profileImageContainer: {
     width: 100,
     height: 100,
     borderRadius: 50,
+    overflow: 'hidden',
     backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
   },
   profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: '100%',
+    height: '100%',
   },
   profilePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   profilePlaceholderText: {
@@ -312,36 +267,32 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 16,
-    paddingVertical: 4,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   inputIcon: {
     marginRight: 12,
   },
   input: {
     flex: 1,
+    height: 56,
     fontSize: 16,
     color: '#333',
-    paddingVertical: 16,
   },
   eyeIcon: {
-    padding: 4,
+    padding: 8,
   },
   registerButton: {
     backgroundColor: '#4CAF50',
-    borderRadius: 25,
-    paddingVertical: 16,
+    borderRadius: 12,
+    height: 56,
+    justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    marginBottom: 16,
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
   },
   registerButtonText: {
     color: '#fff',
@@ -351,12 +302,12 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginVertical: 16,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#e0e0e0',
   },
   dividerText: {
     marginHorizontal: 16,
@@ -368,16 +319,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
-    borderRadius: 25,
+    borderRadius: 12,
     paddingVertical: 16,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    marginBottom: 40,
+    borderColor: '#e0e0e0',
+    marginBottom: 20,
   },
   googleIcon: {
     width: 20,
@@ -393,18 +339,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    paddingVertical: 20,
+    backgroundColor: '#f5f5f5',
   },
   footerText: {
     color: '#666',
     fontSize: 16,
   },
   linkText: {
-    color: '#007AFF',
+    color: '#4CAF50',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  disabledButton: {
-    backgroundColor: '#E0E0E0',
+    fontWeight: 'bold',
   },
 }); 
