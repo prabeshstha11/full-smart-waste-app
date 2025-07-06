@@ -13,18 +13,38 @@ import {
 } from 'react-native';
 
 export default function SignIn() {
-  const signInHook = useSignIn();
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [clerkLoaded, setClerkLoaded] = useState(false);
+  
+  const signInHook = useSignIn();
+  const router = useRouter();
 
   // Debug logging
   useEffect(() => {
+    console.log('=== SIGNIN DEBUG ===');
     console.log('SignIn: useSignIn hook result:', signInHook);
-    console.log('SignIn: signIn object:', signInHook?.signIn);
+    console.log('SignIn: isLoaded:', signInHook.isLoaded);
+    console.log('SignIn: signIn object:', signInHook);
     console.log('SignIn: setActive function:', signInHook?.setActive);
+    console.log('SignIn: Hook keys:', Object.keys(signInHook || {}));
+    
+    // Set clerk loaded when isLoaded becomes true
+    if (signInHook.isLoaded) {
+      setClerkLoaded(true);
+    }
   }, [signInHook]);
+
+  // Show loading screen while Clerk is loading
+  if (!clerkLoaded) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Loading...</Text>
+        <Text style={styles.subtitle}>Please wait while we set up authentication</Text>
+      </View>
+    );
+  }
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -32,8 +52,17 @@ export default function SignIn() {
       return;
     }
 
-    if (!signInHook?.signIn) {
+    // Wait for Clerk to be loaded
+    if (!signInHook.isLoaded) {
+      Alert.alert('Error', 'Authentication is still loading. Please wait a moment and try again.');
+      return;
+    }
+
+    // Wait a bit for Clerk to be ready
+    if (!signInHook) {
       console.error('SignIn: signIn is undefined!');
+      console.error('SignIn: signIn state:', signInHook);
+      console.error('SignIn: isLoaded state:', signInHook.isLoaded);
       Alert.alert('Error', 'SignIn service not available. Please try again.');
       return;
     }
@@ -41,25 +70,26 @@ export default function SignIn() {
     setLoading(true);
     try {
       console.log('SignIn: Attempting to sign in with email:', email);
-      const result = await signInHook.signIn.create({
+      const result = await signInHook.create({
         identifier: email,
         password,
       });
 
-      console.log('SignIn: Sign in result status:', result.status);
+      console.log('SignIn: Sign in result:', result);
+      
       if (result.status === 'complete') {
-        if (signInHook.setActive) {
-          await signInHook.setActive({ session: result.createdSessionId });
-          console.log('SignIn: Sign in successful, navigating to welcome');
-        }
-        Alert.alert('Success', 'Signed in successfully!');
-        router.replace('/welcome');
+        console.log('SignIn: Sign in completed successfully');
+        router.push('/choose-role');
+      } else if (result.status === 'needs_first_factor') {
+        console.log('SignIn: Needs first factor authentication');
+        Alert.alert('Error', 'Additional authentication required. Please try again.');
       } else {
-        Alert.alert('Error', 'Sign in failed. Please try again.');
+        console.error('SignIn: Unexpected sign in status:', result.status);
+        Alert.alert('Error', 'Sign in failed. Please check your credentials and try again.');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('SignIn: Sign in error:', error);
-      Alert.alert('Error', error.errors?.[0]?.message || 'Sign in failed');
+      Alert.alert('Error', 'Sign in failed. Please check your credentials and try again.');
     } finally {
       setLoading(false);
     }

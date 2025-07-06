@@ -6,7 +6,7 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'reac
 export default function OTPVerify() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signUp, setActive } = useSignUp();
+  const { signUp } = useSignUp();
   const router = useRouter();
 
   const handleVerify = async () => {
@@ -22,9 +22,9 @@ export default function OTPVerify() {
       });
 
       if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId });
         console.log('Email verified! User ID:', result.createdUserId);
-        router.push('/otp-verified');
+        Alert.alert('Success', 'Email verified successfully!');
+        router.push('/choose-role');
       } else {
         Alert.alert('Error', 'Verification failed. Please try again.');
       }

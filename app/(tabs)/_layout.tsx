@@ -1,26 +1,12 @@
-import { Tabs } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
-import { useEffect, useState } from 'react';
-import { UserService } from '../../utils/userService';
 import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 
 export default function TabLayout() {
   const { user } = useUser();
-  const [userRole, setUserRole] = useState<string>('customer');
-
-  useEffect(() => {
-    const loadUserRole = async () => {
-      if (user?.id) {
-        try {
-          const userData = await UserService.getUserFromDatabase(user.id);
-          setUserRole(userData?.role || 'customer');
-        } catch (error) {
-          console.error('Error loading user role:', error);
-        }
-      }
-    };
-    loadUserRole();
-  }, [user]);
+  
+  // Use default customer role instead of loading from database
+  const userRole = 'customer';
 
   // Different tab configurations based on user role
   const getTabConfig = () => {

@@ -51,7 +51,21 @@ export default function ChooseRole() {
         });
         
         console.log('Role saved successfully');
-        router.push('/welcome');
+        
+        // Navigate to role-specific home page
+        switch (selectedRole) {
+          case 'customer':
+            router.push('/customer-home');
+            break;
+          case 'dealer':
+            router.push('/dealer-home');
+            break;
+          case 'rider':
+            router.push('/rider-home');
+            break;
+          default:
+            router.push('/customer-home');
+        }
       } catch (error) {
         console.error('Error saving role:', error);
         Alert.alert('Error', 'Failed to save role. Please try again.');

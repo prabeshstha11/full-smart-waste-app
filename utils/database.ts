@@ -36,7 +36,7 @@ export interface Item {
   category?: string;
   quantity?: string;
   image_url?: string;
-  status: 'available' | 'accepted' | 'picked_up' | 'completed';
+  status: 'available' | 'accepted' | 'picked_up' | 'completed' | 'cancelled';
   dealer_id?: string; // Dealer who accepted
   rider_id?: string; // Rider assigned
   created_at: Date;
@@ -50,7 +50,7 @@ export interface Transaction {
   customer_id: string;
   dealer_id: string;
   rider_id?: string;
-  status: 'pending' | 'accepted' | 'picked_up' | 'completed';
+  status: 'pending' | 'accepted' | 'picked_up' | 'completed' | 'cancelled';
   created_at: Date;
   updated_at: Date;
 }
@@ -84,19 +84,19 @@ export async function initializeDatabase() {
         title VARCHAR(255) NOT NULL,
         description TEXT,
         price DECIMAL(10,2) NOT NULL,
-        location_lat DECIMAL(10,8) NOT NULL,
-        location_lng DECIMAL(11,8) NOT NULL,
+        location_lat DECIMAL(10,8),
+        location_lng DECIMAL(11,8),
         category VARCHAR(100),
-        quantity VARCHAR(50),
+        quantity VARCHAR(100),
         image_url TEXT,
-        status VARCHAR(20) DEFAULT 'available',
+        status VARCHAR(50) DEFAULT 'available',
         dealer_id VARCHAR(255),
         rider_id VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (dealer_id) REFERENCES users(id),
-        FOREIGN KEY (rider_id) REFERENCES users(id)
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (dealer_id) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (rider_id) REFERENCES users(id) ON DELETE SET NULL
       )
     `;
 
@@ -108,13 +108,13 @@ export async function initializeDatabase() {
         customer_id VARCHAR(255) NOT NULL,
         dealer_id VARCHAR(255) NOT NULL,
         rider_id VARCHAR(255),
-        status VARCHAR(20) DEFAULT 'pending',
+        status VARCHAR(50) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (item_id) REFERENCES items(id),
-        FOREIGN KEY (customer_id) REFERENCES users(id),
-        FOREIGN KEY (dealer_id) REFERENCES users(id),
-        FOREIGN KEY (rider_id) REFERENCES users(id)
+        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+        FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (dealer_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (rider_id) REFERENCES users(id) ON DELETE SET NULL
       )
     `;
     

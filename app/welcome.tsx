@@ -1,4 +1,4 @@
-import { useUser } from '@clerk/clerk-expo';
+import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -9,120 +9,87 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { UserService } from '../utils/userService';
 
 export default function Welcome() {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
+  const { isSignedIn } = useAuth();
   const router = useRouter();
-  const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      loadUserData();
-    }
-  }, [user]);
-
-  const loadUserData = async () => {
-    try {
-      if (user?.id) {
-        const data = await UserService.getUserFromDatabase(user.id);
-        setUserData(data);
-        
-        // Redirect to the main app with tab navigation
-        setTimeout(() => {
-          router.replace('/(tabs)/home');
-        }, 2000);
+    if (isLoaded) {
+      if (isSignedIn && user) {
+        // Immediately redirect authenticated users
+        router.replace('/hello-user');
+      } else {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isLoaded, isSignedIn, user, router]);
 
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'customer':
-        return 'Customer';
-      case 'dealer':
-        return 'Dealer';
-      case 'rider':
-        return 'Rider';
-      default:
-        return 'User';
-    }
-  };
-
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'customer':
-        return 'person';
-      case 'dealer':
-        return 'business';
-      case 'rider':
-        return 'bicycle';
-      default:
-        return 'person';
-    }
-  };
-
-  if (loading) {
+  // Show loading while checking authentication
+  if (!isLoaded || loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4caf50" />
-        <Text style={styles.loadingText}>Loading your dashboard...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Ionicons name="checkmark-circle" size={80} color="#4caf50" />
-        <Text style={styles.welcomeTitle}>Welcome!</Text>
-        <Text style={styles.welcomeSubtitle}>
-          You're all set up and ready to go
-        </Text>
-      </View>
+  // Show welcome page for non-authenticated users
+  if (!isSignedIn) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Ionicons name="leaf" size={80} color="#4caf50" />
+          <Text style={styles.welcomeTitle}>Welcome to Sajilo Waste</Text>
+          <Text style={styles.welcomeSubtitle}>
+            Your smart waste management platform
+          </Text>
+        </View>
 
-      <View style={styles.userInfo}>
-        <View style={styles.userCard}>
-          <View style={styles.userHeader}>
-            <Ionicons 
-              name={getRoleIcon(userData?.role || 'customer') as any} 
-              size={24} 
-              color="#4caf50" 
-            />
-            <Text style={styles.userName}>
-              {user?.firstName} {user?.lastName}
-            </Text>
+        <View style={styles.featuresContainer}>
+          <View style={styles.featureCard}>
+            <Ionicons name="recycle" size={24} color="#4caf50" />
+            <Text style={styles.featureText}>Recycle your waste</Text>
           </View>
-          
-          <Text style={styles.userEmail}>{user?.emailAddresses[0]?.emailAddress}</Text>
-          
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>
-              {getRoleDisplayName(userData?.role || 'customer')}
-            </Text>
+          <View style={styles.featureCard}>
+            <Ionicons name="cash" size={24} color="#4caf50" />
+            <Text style={styles.featureText}>Get the best prices</Text>
+          </View>
+          <View style={styles.featureCard}>
+            <Ionicons name="bicycle" size={24} color="#4caf50" />
+            <Text style={styles.featureText}>Convenient pickup</Text>
           </View>
         </View>
-      </View>
 
-      <View style={styles.redirectInfo}>
-        <Ionicons name="arrow-forward" size={24} color="#4caf50" />
-        <Text style={styles.redirectText}>
-          Redirecting to your dashboard...
-        </Text>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={styles.primaryButton}
+            onPress={() => router.push('/register')}
+          >
+            <Text style={styles.primaryButtonText}>Create Account</Text>
+            <Ionicons name="person-add" size={20} color="#fff" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.secondaryButton}
+            onPress={() => router.push('/signin')}
+          >
+            <Text style={styles.secondaryButtonText}>Sign In</Text>
+            <Ionicons name="log-in" size={20} color="#4caf50" />
+          </TouchableOpacity>
+        </View>
       </View>
+    );
+  }
 
-      <TouchableOpacity 
-        style={styles.continueButton}
-        onPress={() => router.replace('/(tabs)/home')}
-      >
-        <Text style={styles.continueButtonText}>Continue Now</Text>
-        <Ionicons name="arrow-forward" size={20} color="#fff" />
-      </TouchableOpacity>
+  // This should not be reached, but just in case
+  return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#4caf50" />
+      <Text style={styles.loadingText}>Redirecting...</Text>
     </View>
   );
 }
@@ -156,68 +123,45 @@ const styles = StyleSheet.create({
     color: '#333',
     marginTop: 20,
     marginBottom: 8,
+    textAlign: 'center',
   },
   welcomeSubtitle: {
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
   },
-  userInfo: {
+  featuresContainer: {
     width: '100%',
     marginBottom: 40,
   },
-  userCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  userHeader: {
+  featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
     marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  featureText: {
+    fontSize: 16,
     color: '#333',
     marginLeft: 12,
+    fontWeight: '500',
   },
-  userEmail: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 16,
+  buttonContainer: {
+    width: '100%',
+    gap: 16,
   },
-  roleBadge: {
-    backgroundColor: '#e8f5e8',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
-  roleText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#4caf50',
-  },
-  redirectInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  redirectText: {
-    fontSize: 16,
-    color: '#666',
-    marginLeft: 8,
-  },
-  continueButton: {
+  primaryButton: {
     backgroundColor: '#4caf50',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 16,
     borderRadius: 12,
@@ -227,8 +171,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  continueButtonText: {
+  primaryButtonText: {
     color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+  secondaryButton: {
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#4caf50',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  secondaryButtonText: {
+    color: '#4caf50',
     fontSize: 18,
     fontWeight: 'bold',
     marginRight: 8,

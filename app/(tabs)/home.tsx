@@ -33,6 +33,7 @@ export default function UserHome() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [availableRiders, setAvailableRiders] = useState<any[]>([]);
   const [selectedRider, setSelectedRider] = useState<string>('');
+  const [userDataLoaded, setUserDataLoaded] = useState(false);
   
   const [newOrder, setNewOrder] = useState({
     title: '',
@@ -45,8 +46,7 @@ export default function UserHome() {
 
   useEffect(() => {
     if (user) {
-      loadUserData();
-      loadUserItems();
+      // Only request location permission, don't load user data automatically
       requestLocationPermission();
     }
   }, [user]);
@@ -55,6 +55,7 @@ export default function UserHome() {
     try {
       const userData = await UserService.getUserFromDatabase(user?.id || '');
       setUserRole(userData?.role || 'customer');
+      setUserDataLoaded(true);
       
       // Load different data based on role
       if (userData?.role === 'dealer') {
@@ -63,6 +64,9 @@ export default function UserHome() {
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+      // Set default role if loading fails
+      setUserRole('customer');
+      setUserDataLoaded(true);
     }
   };
 
@@ -282,6 +286,19 @@ export default function UserHome() {
         <Text style={styles.welcomeText}>Welcome back! 👋</Text>
         <Text style={styles.subtitle}>Post your waste for pickup</Text>
       </View>
+
+      {!userDataLoaded && (
+        <View style={styles.loadDataSection}>
+          <Text style={styles.loadDataText}>Load your user data to get personalized experience</Text>
+          <TouchableOpacity
+            style={styles.loadDataButton}
+            onPress={loadUserData}
+          >
+            <Ionicons name="refresh" size={20} color="#fff" />
+            <Text style={styles.loadDataButtonText}>Load User Data</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <TouchableOpacity
         style={styles.addOrderButton}
@@ -925,5 +942,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  loadDataSection: {
+    backgroundColor: '#fff',
+    margin: 20,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  loadDataText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  loadDataButton: {
+    backgroundColor: '#2196f3',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  loadDataButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginLeft: 4,
   },
 }); 

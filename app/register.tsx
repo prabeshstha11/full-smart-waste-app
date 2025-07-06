@@ -10,16 +10,35 @@ export default function Register() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [clerkLoaded, setClerkLoaded] = useState(false);
   
   const signUpHook = useSignUp();
   const router = useRouter();
 
   // Debug logging
   useEffect(() => {
+    console.log('=== REGISTER DEBUG ===');
     console.log('Register: useSignUp hook result:', signUpHook);
-    console.log('Register: signUp object:', signUpHook?.signUp);
-    console.log('Register: setActive function:', signUpHook?.setActive);
+    console.log('Register: isLoaded:', signUpHook.isLoaded);
+    console.log('Register: signUp object:', signUpHook);
+    console.log('Register: setActive function:', signUpHook?.signUp?.setActive);
+    console.log('Register: Hook keys:', Object.keys(signUpHook || {}));
+    
+    // Set clerk loaded when isLoaded becomes true
+    if (signUpHook.isLoaded) {
+      setClerkLoaded(true);
+    }
   }, [signUpHook]);
+
+  // Show loading screen while Clerk is loading
+  if (!clerkLoaded) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Loading...</Text>
+        <Text style={styles.subtitle}>Please wait while we set up authentication</Text>
+      </View>
+    );
+  }
 
   const handleSignUp = async () => {
     if (!email || !password || !firstName || !lastName) {
@@ -27,73 +46,56 @@ export default function Register() {
       return;
     }
 
-    if (!signUpHook?.signUp) {
+    // Wait for Clerk to be loaded
+    if (!signUpHook.isLoaded) {
+      Alert.alert('Error', 'Authentication is still loading. Please wait a moment and try again.');
+      return;
+    }
+
+    // Wait a bit for Clerk to be ready
+    if (!signUpHook.signUp) {
       console.error('Register: signUp is undefined!');
+      console.error('Register: signUp state:', signUpHook.signUp);
+      console.error('Register: isLoaded state:', signUpHook.isLoaded);
       Alert.alert('Error', 'SignUp service not available. Please try again.');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('=== REGISTRATION START ===');
-      console.log('Input data:', { email, firstName, lastName });
+      console.log('Register: Starting sign up process...');
       
       // Step 1: Create the user
       const result = await signUpHook.signUp.create({
         emailAddress: email,
         password,
-        unsafeMetadata: {
-          firstName,
-          lastName,
-        },
+        firstName,
+        lastName,
       });
 
-      console.log('=== SIGNUP RESULT ===');
-      console.log('Status:', result.status);
-      console.log('Created user ID:', result.createdUserId);
-      console.log('Created session ID:', result.createdSessionId);
-      console.log('SignUp ID:', result.id);
-
-      // Step 2: Handle different status scenarios
+      console.log('Register: User created successfully:', result);
+      
       if (result.status === 'complete') {
-        // User created successfully with session
-        if (signUpHook.setActive) {
-          await signUpHook.setActive({ session: result.createdSessionId });
-          console.log('Session activated successfully');
-        }
-        
-        // Sync to database
-        await syncUserToDatabase(result.createdUserId!, email, firstName, lastName, 'customer');
-        router.push('/choose-role');
-        
+        console.log('Register: Sign up completed, redirecting to OTP verification');
+        router.push('/otp-verify');
       } else if (result.status === 'missing_requirements') {
-        console.log('=== HANDLING MISSING REQUIREMENTS ===');
-        console.log('Missing fields:', result.missingFields);
-        console.log('Unverified fields:', result.unverifiedFields);
-        
-        // Check if email needs verification
-        if (result.unverifiedFields?.includes('email_address')) {
-          try {
-            console.log('Preparing email verification...');
-            await signUpHook.signUp.prepareEmailAddressVerification();
-            console.log('Email verification prepared successfully');
-            router.push('/otp-verify');
-          } catch (verificationError) {
-            console.error('Email verification failed:', verificationError);
-            // Continue anyway - user can verify later
-            await handleIncompleteRegistration(result, email, firstName, lastName);
-          }
-        } else {
-          // No email verification needed, complete registration
-          await handleIncompleteRegistration(result, email, firstName, lastName);
+        console.log('Register: Missing requirements, preparing email verification');
+        try {
+          console.log('Preparing email verification...');
+          await signUpHook.signUp.prepareEmailAddressVerification();
+          console.log('Email verification prepared successfully');
+          router.push('/otp-verify');
+        } catch (verificationError) {
+          console.error('Register: Error preparing email verification:', verificationError);
+          Alert.alert('Error', 'Failed to prepare email verification. Please try again.');
         }
       } else {
-        console.log('Unexpected status:', result.status);
-        Alert.alert('Error', `Registration status: ${result.status}`);
+        console.error('Register: Unexpected sign up status:', result.status);
+        Alert.alert('Error', 'Sign up failed. Please try again.');
       }
-    } catch (err) {
-      console.error('=== REGISTRATION ERROR ===', err);
-      Alert.alert('Error', err.message || 'Registration failed');
+    } catch (error) {
+      console.error('Register: Sign up error:', error);
+      Alert.alert('Error', 'Sign up failed. Please check your information and try again.');
     } finally {
       setLoading(false);
     }
@@ -107,10 +109,8 @@ export default function Register() {
       // Sync to database
       await syncUserToDatabase(userId, email, firstName, lastName, 'customer');
       
-      // Try to set session if available
-      if (result.createdSessionId && signUpHook.setActive) {
-        await signUpHook.setActive({ session: result.createdSessionId });
-      }
+      // Don't persist session - users must sign in manually
+      console.log('Registration completed without session persistence');
       
       Alert.alert('Success', 'Registration completed! Please check your email to verify your account.');
       router.push('/choose-role');

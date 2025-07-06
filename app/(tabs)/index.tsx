@@ -1,2 +1,5 @@
-// This file is intentionally left empty as navigation is handled by SplashAndOnboarding.
-export default function HomeScreen() { return null; }
+import { Redirect } from 'expo-router';
+
+export default function TabIndex() {
+  return <Redirect href="/(tabs)/home" />;
+}
