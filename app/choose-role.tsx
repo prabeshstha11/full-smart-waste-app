@@ -1,98 +1,61 @@
-import { useUser } from '@clerk/clerk-expo';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { UserService } from '../utils/userService';
-
-const roles = [
-  {
-    id: 'customer',
-    title: 'Customer',
-    description: 'I want to sell my waste',
-    icon: '🏠',
-  },
-  {
-    id: 'dealer',
-    title: 'Dealer',
-    description: 'I want to buy waste',
-    icon: '🏪',
-  },
-  {
-    id: 'rider',
-    title: 'Rider',
-    description: 'I want to collect waste',
-    icon: '🚚',
-  },
-];
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function ChooseRole() {
-  const [selectedRole, setSelectedRole] = useState('');
-  const router = useRouter();
-  const { user } = useUser();
-
-  const handleContinue = async () => {
-    if (selectedRole && user) {
-      try {
-        console.log('Saving role to Clerk and database:', selectedRole);
-        
-        // Save role to Clerk metadata
-        await user.update({
-          unsafeMetadata: { role: selectedRole },
-        });
-        
-        // Save role to database
-        await UserService.syncUserToDatabase({
-          id: user.id,
-          emailAddresses: user.emailAddresses,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          unsafeMetadata: { role: selectedRole },
-          role: selectedRole,
-        });
-        
-        console.log('Role saved successfully');
-        router.push('/welcome');
-      } catch (error) {
-        console.error('Error saving role:', error);
-        Alert.alert('Error', 'Failed to save role. Please try again.');
-      }
-    }
+  const handleRoleSelect = (role: string) => {
+    // Navigate to role-specific home page
+    router.push(`/${role.toLowerCase()}-home`);
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Choose Your Role</Text>
-        <Text style={styles.subtitle}>What would you like to do with Sajilo Waste?</Text>
+        <Text style={styles.subtitle}>Select how you want to use Sajilo Waste</Text>
       </View>
 
       <View style={styles.rolesContainer}>
-        {roles.map((role) => (
-          <TouchableOpacity
-            key={role.id}
-            style={[
-              styles.roleCard,
-              selectedRole === role.id && styles.selectedRoleCard,
-            ]}
-            onPress={() => setSelectedRole(role.id)}
-          >
-            <Text style={styles.roleIcon}>{role.icon}</Text>
-            <Text style={styles.roleTitle}>{role.title}</Text>
-            <Text style={styles.roleDescription}>{role.description}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        <TouchableOpacity 
+          style={styles.roleCard} 
+          onPress={() => handleRoleSelect('Customer')}
+        >
+          <View style={styles.roleIcon}>
+            <Ionicons name="person-outline" size={40} color="#4CAF50" />
+          </View>
+          <Text style={styles.roleTitle}>Customer</Text>
+          <Text style={styles.roleDescription}>
+            Sell your waste and earn money
+          </Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[
-          styles.continueButton,
-          !selectedRole && styles.disabledButton,
-        ]}
-        onPress={handleContinue}
-        disabled={!selectedRole}
-      >
-        <Text style={styles.continueButtonText}>Continue</Text>
-      </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.roleCard} 
+          onPress={() => handleRoleSelect('Dealer')}
+        >
+          <View style={styles.roleIcon}>
+            <Ionicons name="business-outline" size={40} color="#4CAF50" />
+          </View>
+          <Text style={styles.roleTitle}>Dealer</Text>
+          <Text style={styles.roleDescription}>
+            Buy waste from customers
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.roleCard} 
+          onPress={() => handleRoleSelect('Rider')}
+        >
+          <View style={styles.roleIcon}>
+            <Ionicons name="bicycle-outline" size={40} color="#4CAF50" />
+          </View>
+          <Text style={styles.roleTitle}>Rider</Text>
+          <Text style={styles.roleDescription}>
+            Pick up and deliver waste
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -100,7 +63,7 @@ export default function ChooseRole() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
     padding: 20,
   },
   header: {
@@ -109,10 +72,10 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
@@ -121,48 +84,32 @@ const styles = StyleSheet.create({
   },
   rolesContainer: {
     flex: 1,
-    gap: 16,
+    justifyContent: 'center',
   },
   roleCard: {
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 20,
     alignItems: 'center',
-    backgroundColor: '#f9f9f9',
-  },
-  selectedRoleCard: {
-    borderColor: '#4caf50',
-    backgroundColor: '#e8f5e8',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   roleIcon: {
-    fontSize: 48,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   roleTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
   },
   roleDescription: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
-  },
-  continueButton: {
-    backgroundColor: '#4caf50',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  disabledButton: {
-    backgroundColor: '#ccc',
-  },
-  continueButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
 }); 
