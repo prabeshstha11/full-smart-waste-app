@@ -80,9 +80,9 @@ export default function Home() {
       <View style={styles.actions}>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/hello-user')}
+          onPress={() => router.push('/welcome')}
         >
-          <Text style={styles.actionButtonText}>View Detailed User Info</Text>
+          <Text style={styles.actionButtonText}>Go to Welcome Page</Text>
         </TouchableOpacity>
         
         <TouchableOpacity

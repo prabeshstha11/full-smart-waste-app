@@ -1,11 +1,18 @@
 import { useUser } from '@clerk/clerk-expo';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { UserService } from '../utils/userService';
 
 export default function Welcome() {
-  const { user, signOut } = useUser();
+  const { user } = useUser();
   const router = useRouter();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -18,10 +25,15 @@ export default function Welcome() {
 
   const loadUserData = async () => {
     try {
-      console.log('Loading user data for:', user?.id);
-      const data = await UserService.getUserFromDatabase(user?.id || '');
-      console.log('User data from database:', data);
-      setUserData(data);
+      if (user?.id) {
+        const data = await UserService.getUserFromDatabase(user.id);
+        setUserData(data);
+        
+        // Redirect to the main app with tab navigation
+        setTimeout(() => {
+          router.replace('/(tabs)/home');
+        }, 2000);
+      }
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {
@@ -29,73 +41,88 @@ export default function Welcome() {
     }
   };
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      router.push('/get-started');
-    } catch (error) {
-      console.error('Error signing out:', error);
-      Alert.alert('Error', 'Failed to sign out');
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case 'customer':
+        return 'Customer';
+      case 'dealer':
+        return 'Dealer';
+      case 'rider':
+        return 'Rider';
+      default:
+        return 'User';
+    }
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'customer':
+        return 'person';
+      case 'dealer':
+        return 'business';
+      case 'rider':
+        return 'bicycle';
+      default:
+        return 'person';
     }
   };
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4caf50" />
+        <Text style={styles.loadingText}>Loading your dashboard...</Text>
       </View>
     );
   }
 
-  const userName = user?.firstName || userData?.first_name || 'User';
-  const userRole = userData?.role || 'Not set';
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>Welcome, {userName}! 👋</Text>
-        <Text style={styles.subtitle}>You're logged in as a {userRole}</Text>
+        <Ionicons name="checkmark-circle" size={80} color="#4caf50" />
+        <Text style={styles.welcomeTitle}>Welcome!</Text>
+        <Text style={styles.welcomeSubtitle}>
+          You're all set up and ready to go
+        </Text>
       </View>
 
       <View style={styles.userInfo}>
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Email:</Text>
-          <Text style={styles.infoValue}>{user?.emailAddresses[0]?.emailAddress}</Text>
-        </View>
-        
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Name:</Text>
-          <Text style={styles.infoValue}>{user?.firstName} {user?.lastName}</Text>
-        </View>
-        
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Role:</Text>
-          <Text style={styles.infoValue}>{userRole}</Text>
+        <View style={styles.userCard}>
+          <View style={styles.userHeader}>
+            <Ionicons 
+              name={getRoleIcon(userData?.role || 'customer') as any} 
+              size={24} 
+              color="#4caf50" 
+            />
+            <Text style={styles.userName}>
+              {user?.firstName} {user?.lastName}
+            </Text>
+          </View>
+          
+          <Text style={styles.userEmail}>{user?.emailAddresses[0]?.emailAddress}</Text>
+          
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText}>
+              {getRoleDisplayName(userData?.role || 'customer')}
+            </Text>
+          </View>
         </View>
       </View>
 
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push('/dashboard')}
-        >
-          <Text style={styles.actionButtonText}>Go to Dashboard</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push('/hello-user')}
-        >
-          <Text style={styles.actionButtonText}>View Detailed Info</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.signOutButton}
-          onPress={handleSignOut}
-        >
-          <Text style={styles.signOutButtonText}>Sign Out</Text>
-        </TouchableOpacity>
+      <View style={styles.redirectInfo}>
+        <Ionicons name="arrow-forward" size={24} color="#4caf50" />
+        <Text style={styles.redirectText}>
+          Redirecting to your dashboard...
+        </Text>
       </View>
+
+      <TouchableOpacity 
+        style={styles.continueButton}
+        onPress={() => router.replace('/(tabs)/home')}
+      >
+        <Text style={styles.continueButtonText}>Continue Now</Text>
+        <Ionicons name="arrow-forward" size={20} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -103,77 +130,107 @@ export default function Welcome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 16,
   },
   header: {
     alignItems: 'center',
-    marginTop: 80,
     marginBottom: 40,
   },
-  welcomeText: {
+  welcomeTitle: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 10,
-    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 18,
+  welcomeSubtitle: {
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
-  },
-  loadingText: {
-    fontSize: 18,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 100,
   },
   userInfo: {
-    flex: 1,
-    gap: 16,
+    width: '100%',
+    marginBottom: 40,
   },
-  infoCard: {
-    backgroundColor: '#f9f9f9',
-    padding: 16,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4caf50',
+  userCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  infoLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+  userHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  infoValue: {
-    fontSize: 16,
+  userName: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+    marginLeft: 12,
   },
-  actions: {
-    gap: 12,
-    marginBottom: 20,
+  userEmail: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
   },
-  actionButton: {
+  roleBadge: {
+    backgroundColor: '#e8f5e8',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  roleText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#4caf50',
+  },
+  redirectInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  redirectText: {
+    fontSize: 16,
+    color: '#666',
+    marginLeft: 8,
+  },
+  continueButton: {
     backgroundColor: '#4caf50',
-    paddingVertical: 16,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  signOutButton: {
-    backgroundColor: '#ff6b6b',
+    paddingHorizontal: 24,
     paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  signOutButtonText: {
+  continueButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+    marginRight: 8,
   },
 }); 
