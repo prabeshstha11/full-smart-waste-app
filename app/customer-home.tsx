@@ -62,8 +62,8 @@ export default function CustomerHome() {
     }
   };
 
-  const handleLogout = async () => {
-    router.push('/login');
+  const handleProfilePress = () => {
+    router.push('/customer-profile');
   };
 
   const handlePost = async () => {
@@ -235,7 +235,7 @@ export default function CustomerHome() {
           <TouchableOpacity style={styles.headerIcon}>
             <Ionicons name="notifications-outline" size={24} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIcon} onPress={handleLogout}>
+          <TouchableOpacity style={styles.headerIcon} onPress={handleProfilePress}>
             <Ionicons name="person-circle-outline" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
