@@ -2,33 +2,33 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import {
-    completePickupRequest,
-    getAcceptedNotificationCount,
-    getAssignedPickupRequests,
-    PickupRequest
+  getCompletedPickupRequestsForUser,
+  getPickupRequestsByUser,
+  getUnreadNotificationCount
 } from '../utils/database';
 
 const { width, height } = Dimensions.get('window');
 
-export default function RiderHome() {
-  const [assignedRequests, setAssignedRequests] = useState<(PickupRequest & { customer_name: string; customer_email: string; dealer_name: string })[]>([]);
+export default function UserHome() {
+  const [pickupRequests, setPickupRequests] = useState<any[]>([]);
+  const [completedRequests, setCompletedRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [notificationCount, setNotificationCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -37,18 +37,20 @@ export default function RiderHome() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const riderId = 'dummy_rider_001'; // In a real app, this would come from authentication
+      const userId = 'dummy_user_001'; // In a real app, this would come from authentication
       
-      const [requestsData, notificationCountData] = await Promise.all([
-        getAssignedPickupRequests(riderId),
-        getAcceptedNotificationCount(riderId)
+      const [requestsData, completedData, unreadCountData] = await Promise.all([
+        getPickupRequestsByUser(userId),
+        getCompletedPickupRequestsForUser(userId),
+        getUnreadNotificationCount(userId)
       ]);
       
-      setAssignedRequests(requestsData);
-      setNotificationCount(notificationCountData);
+      setPickupRequests(requestsData);
+      setCompletedRequests(completedData);
+      setUnreadCount(unreadCountData);
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load assigned requests');
+      Alert.alert('Error', 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -60,26 +62,15 @@ export default function RiderHome() {
     setRefreshing(false);
   };
 
-  const handleCompleteRequest = async (requestId: string) => {
-    try {
-      await completePickupRequest(requestId);
-      Alert.alert('Success', 'Pickup completed successfully!');
-      loadData(); // Refresh the data
-    } catch (error) {
-      console.error('Error completing request:', error);
-      Alert.alert('Error', 'Failed to complete pickup');
-    }
+  const handleCreateRequest = () => {
+    router.push('/pickup-schedule');
   };
 
   const handleNotifications = () => {
     router.push('/user-notifications');
   };
 
-  const handleProfilePress = () => {
-    router.push('/rider-profile');
-  };
-
-  const renderRequestCard = (request: PickupRequest & { customer_name: string; customer_email: string; dealer_name: string }) => (
+  const renderRequestCard = (request: any) => (
     <View key={request.id} style={styles.requestCard}>
       {/* Images Section */}
       <View style={styles.imagesSection}>
@@ -105,10 +96,7 @@ export default function RiderHome() {
       </View>
 
       <View style={styles.requestHeader}>
-        <Text style={styles.customerName}>{request.customer_name}</Text>
-        <Text style={styles.customerEmail}>{request.customer_email}</Text>
-        <Text style={styles.dealerName}>Dealer: {request.dealer_name}</Text>
-        <Text style={styles.offeredPrice}>Price: Rs.{request.offered_price}</Text>
+        <Text style={styles.requestTitle}>Pickup Request</Text>
         <View style={styles.statusBadge}>
           <Text style={styles.statusText}>{request.status}</Text>
         </View>
@@ -143,15 +131,11 @@ export default function RiderHome() {
         <Text style={styles.detailText}>
           📍 Location: {request.location}
         </Text>
-      </View>
-      
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={styles.completeButton}
-          onPress={() => handleCompleteRequest(request.id)}
-        >
-          <Text style={styles.completeButtonText}>Mark as Completed</Text>
-        </TouchableOpacity>
+        {request.offered_price && (
+          <Text style={styles.offeredPrice}>
+            💰 Offered Price: Rs.{request.offered_price}
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -162,18 +146,18 @@ export default function RiderHome() {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.logo}>Sajilo Waste</Text>
-          <Text style={styles.riderText}>(Rider)</Text>
+          <Text style={styles.userText}>(User)</Text>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerIcon} onPress={handleNotifications}>
             <Ionicons name="notifications-outline" size={24} color="#fff" />
-            {notificationCount > 0 && (
+            {unreadCount > 0 && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>{notificationCount}</Text>
+                <Text style={styles.badgeText}>{unreadCount}</Text>
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIcon} onPress={handleProfilePress}>
+          <TouchableOpacity style={styles.headerIcon}>
             <Ionicons name="person-circle-outline" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -188,22 +172,59 @@ export default function RiderHome() {
       >
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>My Assigned Pickups</Text>
+            <Text style={styles.sectionTitle}>My Pickup Requests</Text>
+            <TouchableOpacity style={styles.createButton} onPress={handleCreateRequest}>
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.createButtonText}>New Request</Text>
+            </TouchableOpacity>
           </View>
 
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#4CAF50" />
-              <Text style={styles.loadingText}>Loading assigned pickups...</Text>
+              <Text style={styles.loadingText}>Loading your requests...</Text>
             </View>
-          ) : assignedRequests.length === 0 ? (
+          ) : pickupRequests.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="bicycle-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No assigned pickups</Text>
-              <Text style={styles.emptySubtext}>You'll see assigned pickups here</Text>
+              <Ionicons name="list-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No pickup requests</Text>
+              <Text style={styles.emptySubtext}>Create your first pickup request</Text>
+              <TouchableOpacity style={styles.emptyButton} onPress={handleCreateRequest}>
+                <Text style={styles.emptyButtonText}>Create Request</Text>
+              </TouchableOpacity>
             </View>
           ) : (
-            assignedRequests.map(renderRequestCard)
+            pickupRequests.map(renderRequestCard)
+          )}
+        </View>
+
+        {/* Completed Orders Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Completed Orders</Text>
+          </View>
+
+          {completedRequests.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="checkmark-circle-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No completed orders</Text>
+              <Text style={styles.emptySubtext}>Your completed orders will appear here</Text>
+            </View>
+          ) : (
+            completedRequests.map((request) => (
+              <View key={request.id} style={styles.completedCard}>
+                <View style={styles.completedHeader}>
+                  <Text style={styles.completedTitle}>Completed Pickup</Text>
+                  <Text style={styles.completedDate}>
+                    {new Date(request.updated_at).toLocaleDateString()}
+                  </Text>
+                </View>
+                <Text style={styles.dealerName}>Dealer: {request.dealer_name || 'N/A'}</Text>
+                <Text style={styles.riderName}>Rider: {request.rider_name || 'N/A'}</Text>
+                <Text style={styles.offeredPrice}>Price: Rs.{request.offered_price}</Text>
+                <Text style={styles.location}>📍 {request.location}</Text>
+              </View>
+            ))
           )}
         </View>
       </ScrollView>
@@ -253,7 +274,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  riderText: {
+  userText: {
     fontSize: 12,
     color: '#fff',
     opacity: 0.8,
@@ -266,6 +287,22 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     padding: 4,
     position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#FF6B6B',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   content: {
     flex: 1,
@@ -283,6 +320,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+  },
+  createButton: {
+    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  createButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -308,6 +359,18 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 4,
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  emptyButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   requestCard: {
     backgroundColor: '#fff',
@@ -323,58 +386,19 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  imagesSection: {
-    marginBottom: 16,
+  requestHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  imagesTitle: {
+  requestTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
-  },
-  imageContainer: {
-    marginRight: 8,
-  },
-  requestImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-  },
-  imagePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: '#ccc',
-  },
-  requestHeader: {
-    marginBottom: 12,
-  },
-  customerName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  customerEmail: {
-    fontSize: 14,
-    color: '#666',
-  },
-  dealerName: {
-    fontSize: 14,
-    color: '#666',
-  },
-  offeredPrice: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#4CAF50',
   },
   statusBadge: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#FFA726',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -383,81 +407,139 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#fff',
+    textTransform: 'capitalize',
   },
-  itemsSection: {
+  imagesSection: {
     marginBottom: 16,
   },
+  imagesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  imageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 8,
+    overflow: 'hidden',
+  },
+  requestImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+  },
+  placeholderText: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
+  itemsSection: {
+    marginBottom: 12,
+  },
   itemsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
     marginBottom: 8,
   },
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 4,
   },
   itemName: {
     fontSize: 14,
-    color: '#666',
+    color: '#333',
   },
   itemQuantity: {
     fontSize: 14,
-    color: '#999',
+    color: '#666',
   },
   detailsSection: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   detailText: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 4,
   },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  completeButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  completeButtonText: {
-    color: '#fff',
-    fontSize: 14,
+  offeredPrice: {
+    fontSize: 16,
     fontWeight: '600',
+    color: '#4CAF50',
+    marginTop: 4,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalBackground: {
     flex: 1,
-    backgroundColor: 'black',
-  },
-  modalImage: {
-    width: width,
-    height: height,
-  },
-  badge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#FF6B6B',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
+    height: '100%',
   },
-  badgeText: {
-    color: '#fff',
-    fontSize: 12,
+  modalImage: {
+    width: width * 0.9,
+    height: height * 0.7,
+    borderRadius: 12,
+  },
+  completedCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  completedHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  completedTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#333',
+  },
+  completedDate: {
+    fontSize: 14,
+    color: '#666',
+  },
+  dealerName: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 4,
+  },
+  riderName: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 4,
+  },
+  location: {
+    fontSize: 14,
+    color: '#666',
   },
 }); 

@@ -1,9 +1,9 @@
-import { createTestPost, getAllTestPosts, TestPost } from '@/utils/database';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { createTestPost, getAcceptedNotificationCount, getAllTestPosts, TestPost } from '../utils/database';
 
 export default function CustomerHome() {
   const [message, setMessage] = useState('');
@@ -14,6 +14,7 @@ export default function CustomerHome() {
   const [location, setLocation] = useState<string>('Location not available');
   const [locationLoading, setLocationLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [notificationCount, setNotificationCount] = useState(0);
 
   const loadPosts = async () => {
     try {
@@ -27,9 +28,20 @@ export default function CustomerHome() {
     }
   };
 
+  const loadNotificationCount = async () => {
+    try {
+      const userId = 'dummy_user_001'; // In a real app, this would come from authentication
+      const count = await getAcceptedNotificationCount(userId);
+      setNotificationCount(count);
+    } catch (error) {
+      console.error('Error loading notification count:', error);
+    }
+  };
+
   useEffect(() => {
     loadPosts();
     getCurrentLocation();
+    loadNotificationCount();
   }, []);
 
   const getCurrentLocation = async () => {
@@ -64,6 +76,10 @@ export default function CustomerHome() {
 
   const handleProfilePress = () => {
     router.push('/customer-profile');
+  };
+
+  const handleNotificationPress = () => {
+    router.push('/user-notifications');
   };
 
   const handlePost = async () => {
@@ -232,8 +248,13 @@ export default function CustomerHome() {
           <Text style={styles.logo}>Sajilo Waste</Text>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerIcon}>
+          <TouchableOpacity style={styles.headerIcon} onPress={handleNotificationPress}>
             <Ionicons name="notifications-outline" size={24} color="#fff" />
+            {notificationCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{notificationCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerIcon} onPress={handleProfilePress}>
             <Ionicons name="person-circle-outline" size={24} color="#fff" />
@@ -316,6 +337,7 @@ const styles = StyleSheet.create({
   headerIcon: {
     marginLeft: 20,
     padding: 4,
+    position: 'relative',
   },
   content: {
     flex: 1,
@@ -537,5 +559,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontStyle: 'italic',
     marginTop: 20,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#FF6B6B',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 }); 

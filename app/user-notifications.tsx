@@ -1,9 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Dimensions,
     Image,
+    Modal,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -11,27 +14,46 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { acceptOfferByUser, getPickupRequestsWithOffers, PickupRequest } from '../utils/database';
+import {
+    acceptOfferByUser,
+    getPickupRequestsWithOffers,
+    getUnreadNotificationCount,
+    getUserNotifications,
+    markAllNotificationsAsRead,
+    markNotificationAsRead
+} from '../utils/database';
+
+const { width, height } = Dimensions.get('window');
 
 export default function UserNotifications() {
-  const [offers, setOffers] = useState<(PickupRequest & { dealer_name: string; dealer_email: string })[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [offers, setOffers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    loadOffers();
+    loadData();
   }, []);
 
-  const loadOffers = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      // For now, using dummy user ID. In a real app, this would come from authentication
-      const userId = 'dummy_user_001';
-      const offersData = await getPickupRequestsWithOffers(userId);
+      const userId = 'dummy_user_001'; // In a real app, this would come from authentication
+      
+      const [notificationsData, offersData, unreadCountData] = await Promise.all([
+        getUserNotifications(userId),
+        getPickupRequestsWithOffers(userId),
+        getUnreadNotificationCount(userId)
+      ]);
+      
+      setNotifications(notificationsData);
       setOffers(offersData);
+      setUnreadCount(unreadCountData);
     } catch (error) {
-      console.error('Error loading offers:', error);
-      Alert.alert('Error', 'Failed to load offers');
+      console.error('Error loading data:', error);
+      Alert.alert('Error', 'Failed to load notifications');
     } finally {
       setLoading(false);
     }
@@ -39,15 +61,15 @@ export default function UserNotifications() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadOffers();
+    await loadData();
     setRefreshing(false);
   };
 
   const handleAcceptOffer = async (requestId: string) => {
     try {
       await acceptOfferByUser(requestId);
-      Alert.alert('Success', 'Offer accepted successfully');
-      loadOffers(); // Refresh the list
+      Alert.alert('Success', 'Offer accepted successfully!');
+      loadData(); // Refresh the data
     } catch (error) {
       console.error('Error accepting offer:', error);
       Alert.alert('Error', 'Failed to accept offer');
@@ -55,170 +77,216 @@ export default function UserNotifications() {
   };
 
   const handleRejectOffer = async (requestId: string) => {
-    Alert.alert(
-      'Reject Offer',
-      'Are you sure you want to reject this offer?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // In a real app, you would update the status to 'rejected' or 'pending'
-              Alert.alert('Success', 'Offer rejected');
-              loadOffers(); // Refresh the list
-            } catch (error) {
-              console.error('Error rejecting offer:', error);
-              Alert.alert('Error', 'Failed to reject offer');
-            }
-          },
-        },
-      ]
-    );
+    try {
+      // In a real app, you'd have a reject function
+      Alert.alert('Success', 'Offer rejected successfully!');
+      loadData(); // Refresh the data
+    } catch (error) {
+      console.error('Error rejecting offer:', error);
+      Alert.alert('Error', 'Failed to reject offer');
+    }
   };
 
-  const handleContactDealer = (dealerEmail: string, dealerName: string) => {
-    Alert.alert(
-      'Contact Dealer',
-      `Would you like to contact ${dealerName}?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Call',
-          onPress: () => {
-            // In a real app, this would initiate a phone call
-            Alert.alert('Call', `Calling ${dealerName}...`);
-          },
-        },
-        {
-          text: 'Message',
-          onPress: () => {
-            // In a real app, this would open messaging
-            Alert.alert('Message', `Opening chat with ${dealerName}...`);
-          },
-        },
-      ]
-    );
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await markNotificationAsRead(notificationId);
+      loadData(); // Refresh to update unread count
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>Loading offers...</Text>
+  const handleMarkAllAsRead = async () => {
+    try {
+      const userId = 'dummy_user_001'; // In a real app, this would come from authentication
+      await markAllNotificationsAsRead(userId);
+      loadData(); // Refresh to update unread count
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const renderOfferCard = (offer: any) => (
+    <View key={offer.id} style={styles.offerCard}>
+      {/* Images Section */}
+      <View style={styles.imagesSection}>
+        <Text style={styles.imagesTitle}>Images:</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {offer.images && offer.images.length > 0 ? (
+            offer.images.map((imageUrl: string, index: number) => (
+              <TouchableOpacity 
+                key={`${offer.id}_image_${index}`} 
+                style={styles.imageContainer}
+                onPress={() => setSelectedImage(imageUrl)}
+              >
+                <Image source={{ uri: imageUrl }} style={styles.offerImage} />
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View key={`${offer.id}_placeholder`} style={styles.imagePlaceholder}>
+              <Ionicons name="image-outline" size={32} color="#ccc" />
+              <Text style={styles.placeholderText}>No Image</Text>
+            </View>
+          )}
+        </ScrollView>
       </View>
-    );
-  }
+
+      <View style={styles.offerHeader}>
+        <Text style={styles.dealerName}>{offer.dealer_name}</Text>
+        <Text style={styles.dealerEmail}>{offer.dealer_email}</Text>
+        <Text style={styles.offeredPrice}>Offered: Rs.{offer.offered_price}</Text>
+      </View>
+      
+      <View style={styles.itemsSection}>
+        <Text style={styles.itemsTitle}>Items:</Text>
+        {Array.isArray(offer.selected_items) ? (
+          offer.selected_items.map((itemName: string, index: number) => (
+            <View key={`${offer.id}_item_${index}`} style={styles.itemRow}>
+              <Text style={styles.itemName}>{itemName}</Text>
+              <Text style={styles.itemQuantity}>Qty: {offer.quantities[itemName] || 0}</Text>
+            </View>
+          ))
+        ) : (
+          Object.entries(offer.selected_items || {}).map(([itemName, itemData]: [string, any]) => (
+            <View key={`${offer.id}_item_${itemName}`} style={styles.itemRow}>
+              <Text style={styles.itemName}>{itemName}</Text>
+              <Text style={styles.itemQuantity}>Qty: {offer.quantities[itemName] || 0}</Text>
+            </View>
+          ))
+        )}
+      </View>
+      
+      <View style={styles.detailsSection}>
+        <Text style={styles.detailText}>
+          📅 Pickup Date: {new Date(offer.pickup_date).toLocaleDateString()}
+        </Text>
+        <Text style={styles.detailText}>
+          🕒 Pickup Time: {new Date(offer.pickup_time).toLocaleTimeString()}
+        </Text>
+        <Text style={styles.detailText}>
+          📍 Location: {offer.location}
+        </Text>
+      </View>
+      
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={styles.acceptButton}
+          onPress={() => handleAcceptOffer(offer.id)}
+        >
+          <Text style={styles.acceptButtonText}>Accept Offer</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.rejectButton}
+          onPress={() => handleRejectOffer(offer.id)}
+        >
+          <Text style={styles.rejectButtonText}>Reject</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderNotificationCard = (notification: any) => (
+    <View key={notification.id} style={styles.notificationCard}>
+      <View style={styles.notificationHeader}>
+        <Text style={styles.notificationTitle}>{notification.title}</Text>
+        <Text style={styles.notificationTime}>
+          {new Date(notification.created_at).toLocaleString()}
+        </Text>
+      </View>
+      <Text style={styles.notificationMessage}>{notification.message}</Text>
+      {!notification.is_read && (
+        <View style={styles.unreadIndicator}>
+          <Text style={styles.unreadText}>New</Text>
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <Text style={styles.headerSubtitle}>Dealer Offers</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Notifications</Text>
+        </View>
+        <View style={styles.headerRight}>
+          {unreadCount > 0 && (
+            <TouchableOpacity style={styles.markAllButton} onPress={handleMarkAllAsRead}>
+              <Text style={styles.markAllButtonText}>Mark All Read</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
+      {/* Content */}
       <ScrollView 
         style={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {offers.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="notifications-off-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No offers yet</Text>
-            <Text style={styles.emptySubtext}>You'll see dealer offers here when they make them</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.loadingText}>Loading notifications...</Text>
           </View>
         ) : (
-          offers.map((offer) => (
-            <View key={offer.id} style={styles.offerCard}>
-              {/* Image Section */}
-              {offer.images && offer.images.length > 0 && offer.images[0] ? (
-                <View style={styles.imageContainer}>
-                  <Image 
-                    source={{ uri: offer.images[0] }} 
-                    style={styles.offerImage}
-                    resizeMode="cover"
-                  />
+          <>
+            {/* Dealer Offers Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Dealer Offers</Text>
+              {offers.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="checkmark-circle-outline" size={48} color="#ccc" />
+                  <Text style={styles.emptyText}>No dealer offers</Text>
+                  <Text style={styles.emptySubtext}>Dealer offers will appear here</Text>
                 </View>
               ) : (
-                <View style={styles.imagePlaceholder}>
-                  <Ionicons name="image-outline" size={48} color="#ccc" />
-                  <Text style={styles.placeholderText}>No Image</Text>
-                </View>
+                offers.map(renderOfferCard)
               )}
-
-              <View style={styles.offerHeader}>
-                <Text style={styles.offerTitle}>Dealer Offer</Text>
-                <View style={styles.priceBadge}>
-                  <Text style={styles.priceText}>₹{offer.offered_price}</Text>
-                </View>
-              </View>
-
-              <View style={styles.offerDetails}>
-                <View style={styles.detailRow}>
-                  <Ionicons name="person-outline" size={16} color="#666" />
-                  <Text style={styles.detailText}>
-                    {offer.dealer_name || 'Dealer'}
-                  </Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Ionicons name="location-outline" size={16} color="#666" />
-                  <Text style={styles.detailText}>{offer.location}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Ionicons name="calendar-outline" size={16} color="#666" />
-                  <Text style={styles.detailText}>
-                    {new Date(offer.pickup_date).toLocaleDateString()}
-                  </Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Ionicons name="time-outline" size={16} color="#666" />
-                  <Text style={styles.detailText}>
-                    {new Date(offer.pickup_time).toLocaleTimeString()}
-                  </Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Ionicons name="list-outline" size={16} color="#666" />
-                  <Text style={styles.detailText}>
-                    Items: {offer.selected_items.join(', ')}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.actionButtons}>
-                <TouchableOpacity 
-                  style={styles.acceptButton}
-                  onPress={() => handleAcceptOffer(offer.id)}
-                >
-                  <Text style={styles.acceptButtonText}>Accept Offer</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.rejectButton}
-                  onPress={() => handleRejectOffer(offer.id)}
-                >
-                  <Text style={styles.rejectButtonText}>Reject</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.contactButton}
-                  onPress={() => handleContactDealer(offer.dealer_email, offer.dealer_name)}
-                >
-                  <Text style={styles.contactButtonText}>Contact</Text>
-                </TouchableOpacity>
-              </View>
             </View>
-          ))
+
+            {/* Notifications Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>All Notifications</Text>
+              {notifications.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="notifications-outline" size={48} color="#ccc" />
+                  <Text style={styles.emptyText}>No notifications</Text>
+                  <Text style={styles.emptySubtext}>Notifications will appear here</Text>
+                </View>
+              ) : (
+                notifications.map(renderNotificationCard)
+              )}
+            </View>
+          </>
         )}
       </ScrollView>
+
+      {/* Image Modal */}
+      <Modal
+        visible={selectedImage !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedImage(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity 
+            style={styles.modalBackground} 
+            onPress={() => setSelectedImage(null)}
+          >
+            <Image 
+              source={{ uri: selectedImage || '' }} 
+              style={styles.modalImage}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -228,40 +296,53 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
   header: {
-    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 20,
     paddingTop: 60,
+    backgroundColor: '#4CAF50',
+  },
+  backButton: {
+    marginRight: 16,
+  },
+  headerCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 4,
   },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#fff',
-    opacity: 0.8,
+  headerRight: {
+    width: 40,
   },
   content: {
     flex: 1,
   },
+  section: {
+    padding: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+  },
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 20,
+    paddingVertical: 40,
   },
   emptyText: {
     fontSize: 18,
@@ -278,8 +359,8 @@ const styles = StyleSheet.create({
   offerCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    margin: 16,
     padding: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -289,78 +370,99 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  imageContainer: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    overflow: 'hidden',
+  offerHeader: {
     marginBottom: 12,
+  },
+  dealerName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  dealerEmail: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  offeredPrice: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginTop: 4,
+  },
+  imagesSection: {
+    marginBottom: 16,
+  },
+  imagesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  imageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 8,
+    overflow: 'hidden',
   },
   offerImage: {
     width: '100%',
     height: '100%',
   },
   imagePlaceholder: {
-    width: '100%',
-    height: 200,
+    width: 80,
+    height: 80,
     borderRadius: 8,
     backgroundColor: '#f5f5f5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
     borderWidth: 2,
     borderColor: '#e0e0e0',
     borderStyle: 'dashed',
   },
   placeholderText: {
-    fontSize: 16,
+    fontSize: 12,
     color: '#999',
-    marginTop: 8,
+    marginTop: 4,
   },
-  offerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  itemsSection: {
     marginBottom: 12,
   },
-  offerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  itemsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  itemName: {
+    fontSize: 14,
     color: '#333',
   },
-  priceBadge: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+  itemQuantity: {
+    fontSize: 14,
+    color: '#666',
   },
-  priceText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  offerDetails: {
+  detailsSection: {
     marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
   },
   detailText: {
     fontSize: 14,
     color: '#666',
-    marginLeft: 8,
-    flex: 1,
+    marginBottom: 4,
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
   acceptButton: {
     backgroundColor: '#4CAF50',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     borderRadius: 8,
     flex: 1,
     alignItems: 'center',
@@ -371,9 +473,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   rejectButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#FF6B6B',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     borderRadius: 8,
     flex: 1,
     alignItems: 'center',
@@ -383,15 +485,81 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  contactButton: {
-    backgroundColor: '#2196F3',
+  notificationCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  notificationTime: {
+    fontSize: 12,
+    color: '#999',
+  },
+  notificationMessage: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  unreadIndicator: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  unreadText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBackground: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  modalImage: {
+    width: width * 0.9,
+    height: height * 0.7,
+    borderRadius: 12,
+  },
+  markAllButton: {
+    backgroundColor: '#4CAF50',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     borderRadius: 8,
     flex: 1,
     alignItems: 'center',
   },
-  contactButtonText: {
+  markAllButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',

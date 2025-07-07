@@ -14,6 +14,8 @@ export default function RootLayout() {
         <Stack.Screen name="customer-home" options={{ headerShown: false }} />
         <Stack.Screen name="dealer-home" options={{ headerShown: false }} />
         <Stack.Screen name="rider-home" options={{ headerShown: false }} />
+        <Stack.Screen name="user-notifications" options={{ headerShown: false }} />
+        <Stack.Screen name="rider-profile" options={{ headerShown: false }} />
         <Stack.Screen name="pickup-schedule" options={{ headerShown: false }} />
       </Stack>
     </>

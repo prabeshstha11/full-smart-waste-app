@@ -2,31 +2,51 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { assignRider, createNotification, getAvailableRiders, getDealerRequestedPickupRequests, getPendingPickupRequestsWithUser, makeOfferOnPickupRequest, PickupRequest, User } from '../utils/database';
+import {
+  assignRiderToPickupRequest,
+  createNotification,
+  getAcceptedPickupRequestsForDealer,
+  getAvailableRiders,
+  getCompletedPickupRequests,
+  getDealerRequestedPickupRequests,
+  getPendingPickupRequestsWithUser,
+  makeOfferOnPickupRequest,
+  PickupRequest,
+  User
+} from '../utils/database';
 
 const { width, height } = Dimensions.get('window');
 
 export default function DealerHome() {
   const [activeTab, setActiveTab] = useState('home');
+  const [homeSubTab, setHomeSubTab] = useState('new'); // 'new', 'my', or 'requested'
   const [pendingRequests, setPendingRequests] = useState<(PickupRequest & { customer_name: string; customer_email: string })[]>([]);
   const [myRequests, setMyRequests] = useState<(PickupRequest & { customer_name: string; customer_email: string })[]>([]);
+  const [acceptedRequests, setAcceptedRequests] = useState<(PickupRequest & { customer_name: string; customer_email: string })[]>([]);
+  const [completedRequests, setCompletedRequests] = useState<(PickupRequest & { customer_name: string; customer_email: string; rider_name: string })[]>([]);
   const [riders, setRiders] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [requestedItems, setRequestedItems] = useState<Set<string>>(new Set());
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [showRiderModal, setShowRiderModal] = useState(false);
+  const [currentRequest, setCurrentRequest] = useState<{ id: string; userId: string } | null>(null);
+  const [currentRequestForRider, setCurrentRequestForRider] = useState<string | null>(null);
+  const [priceInput, setPriceInput] = useState('');
 
   useEffect(() => {
     loadData();
@@ -36,18 +56,19 @@ export default function DealerHome() {
     try {
       setLoading(true);
       const dealerId = 'dummy_dealer_001'; // In a real app, this would come from authentication
-      const [requestsData, myRequestsData, ridersData] = await Promise.all([
+      
+      const [pendingData, myRequestsData, acceptedData, completedData, ridersData] = await Promise.all([
         getPendingPickupRequestsWithUser(),
         getDealerRequestedPickupRequests(dealerId),
+        getAcceptedPickupRequestsForDealer(dealerId),
+        getCompletedPickupRequests(dealerId),
         getAvailableRiders()
       ]);
       
-      console.log('Pending requests:', requestsData);
-      console.log('My requests:', myRequestsData);
-      console.log('Riders:', ridersData);
-      
-      setPendingRequests(requestsData);
+      setPendingRequests(pendingData);
       setMyRequests(myRequestsData);
+      setAcceptedRequests(acceptedData);
+      setCompletedRequests(completedData);
       setRiders(ridersData);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -67,51 +88,61 @@ export default function DealerHome() {
     router.push('/dealer-profile');
   };
 
-  const handleMakeOffer = async (requestId: string) => {
+  const handleMakeOffer = async (requestId: string, userId: string) => {
+    try {
+      console.log('handleMakeOffer called with:', { requestId, userId });
+      
+      // Set current request and show price modal
+      setCurrentRequest({ id: requestId, userId });
+      setPriceInput('');
+      setShowPriceModal(true);
+    } catch (error) {
+      console.error('Error making offer:', error);
+      Alert.alert('Error', 'Failed to send offer');
+    }
+  };
+
+  const handleSubmitOffer = async () => {
+    if (!currentRequest) return;
+    
+    const price = parseFloat(priceInput);
+    if (isNaN(price) || price <= 0) {
+      Alert.alert('Error', 'Please enter a valid price');
+      return;
+    }
+
     try {
       const dealerId = 'dummy_dealer_001';
       
-      Alert.prompt(
-        'Make Offer',
-        'Enter your offered price (₹):',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Send Offer',
-            onPress: async (price) => {
-              if (price && !isNaN(Number(price))) {
-                const offeredPrice = Number(price);
-                await makeOfferOnPickupRequest(requestId, dealerId, offeredPrice);
-                
-                // Create notification for user
-                const notificationId = `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                await createNotification({
-                  id: notificationId,
-                  user_id: 'dummy_user_001', // In a real app, get from request
-                  title: 'New Dealer Offer',
-                  message: `A dealer has made an offer of ₹${offeredPrice} for your pickup request`,
-                  type: 'dealer_offer',
-                  related_id: requestId
-                });
-                
-                // Mark as requested
-                setRequestedItems(prev => new Set(prev).add(requestId));
-                
-                Alert.alert('Success', 'Offer sent to user successfully');
-                loadData();
-              } else {
-                Alert.alert('Error', 'Please enter a valid price');
-              }
-            },
-          },
-        ],
-        'plain-text',
-        '',
-        'numeric'
-      );
+      console.log('Making offer with price:', price);
+      
+      // Update the pickup request in database
+      await makeOfferOnPickupRequest(currentRequest.id, dealerId, price);
+      
+      // Create notification for user
+      const notificationId = `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await createNotification({
+        id: notificationId,
+        user_id: currentRequest.userId,
+        title: 'New Dealer Offer',
+        message: `A dealer has made an offer of Rs.${price} for your pickup request`,
+        type: 'dealer_offer',
+        related_id: currentRequest.id
+      });
+      
+      // Mark as requested
+      setRequestedItems(prev => new Set(prev).add(currentRequest.id));
+      
+      Alert.alert('Success', `Request sent successfully with Rs.${price}! Waiting for user approval.`);
+      
+      // Close modal and refresh data
+      setShowPriceModal(false);
+      setCurrentRequest(null);
+      setPriceInput('');
+      
+      // Refresh data and switch to My Request tab
+      await loadData();
+      setHomeSubTab('my');
     } catch (error) {
       console.error('Error making offer:', error);
       Alert.alert('Error', 'Failed to send offer');
@@ -120,30 +151,44 @@ export default function DealerHome() {
 
   const handleAssignRider = async (requestId: string) => {
     try {
-      if (riders.length === 0) {
+      // Load available riders from database
+      const availableRiders = await getAvailableRiders();
+      
+      if (availableRiders.length === 0) {
         Alert.alert('No Riders', 'No riders are currently available');
         return;
       }
 
-      const riderOptions = riders.map(rider => ({
-        text: `${rider.first_name} ${rider.last_name}`,
-        onPress: async () => {
-          try {
-            await assignRider(requestId, rider.id);
-            Alert.alert('Success', `Rider ${rider.first_name} assigned successfully`);
-            loadData();
-          } catch (error) {
-            console.error('Error assigning rider:', error);
-            Alert.alert('Error', 'Failed to assign rider');
-          }
-        }
-      }));
+      // Show custom rider selection modal
+      setCurrentRequestForRider(requestId);
+      setShowRiderModal(true);
+    } catch (error) {
+      console.error('Error assigning rider:', error);
+      Alert.alert('Error', 'Failed to assign rider');
+    }
+  };
 
-      Alert.alert(
-        'Assign Rider',
-        'Select a rider to assign:',
-        riderOptions
-      );
+  const handleAssignRiderToRequest = async (riderId: string, riderName: string) => {
+    if (!currentRequestForRider) return;
+    
+    try {
+      await assignRiderToPickupRequest(currentRequestForRider, riderId);
+      
+      // Send notification to rider
+      const notificationId = `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await createNotification({
+        id: notificationId,
+        user_id: riderId,
+        title: 'New Pickup Assignment',
+        message: `You have been assigned a new pickup request. Please check your orders.`,
+        type: 'pickup_assignment',
+        related_id: currentRequestForRider
+      });
+      
+      Alert.alert('Success', `Rider ${riderName} assigned successfully`);
+      setShowRiderModal(false);
+      setCurrentRequestForRider(null);
+      loadData();
     } catch (error) {
       console.error('Error assigning rider:', error);
       Alert.alert('Error', 'Failed to assign rider');
@@ -151,27 +196,53 @@ export default function DealerHome() {
   };
 
   const renderRequestCard = (item: PickupRequest & { customer_name: string; customer_email: string }, isMyRequest: boolean = false) => (
-    <View style={styles.requestCard}>
+    <View key={item.id} style={styles.requestCard}>
+      {/* Images Section - First */}
+      <View style={styles.imagesSection}>
+        <Text style={styles.imagesTitle}>Images:</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {item.images && item.images.length > 0 ? (
+            item.images.map((imageUrl: string, index: number) => (
+              <TouchableOpacity 
+                key={`${item.id}_image_${index}`} 
+                style={styles.imageContainer}
+                onPress={() => setSelectedImage(imageUrl)}
+              >
+                <Image source={{ uri: imageUrl }} style={styles.requestImage} />
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View key={`${item.id}_placeholder`} style={styles.imagePlaceholder}>
+              <Ionicons name="image-outline" size={32} color="#ccc" />
+              <Text style={styles.placeholderText}>No Image</Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+
       <View style={styles.requestHeader}>
         <Text style={styles.customerName}>{item.customer_name}</Text>
         <Text style={styles.customerEmail}>{item.customer_email}</Text>
         {isMyRequest && item.offered_price && (
-          <Text style={styles.offeredPrice}>Offered: ₹{item.offered_price}</Text>
+          <Text style={styles.offeredPrice}>Offered: Rs.{item.offered_price}</Text>
         )}
+        <View style={styles.statusBadge}>
+          <Text style={styles.statusText}>{item.status}</Text>
+        </View>
       </View>
       
       <View style={styles.itemsSection}>
         <Text style={styles.itemsTitle}>Items:</Text>
         {Array.isArray(item.selected_items) ? (
           item.selected_items.map((itemName: string, index: number) => (
-            <View key={index} style={styles.itemRow}>
+            <View key={`${item.id}_item_${index}`} style={styles.itemRow}>
               <Text style={styles.itemName}>{itemName}</Text>
               <Text style={styles.itemQuantity}>Qty: {item.quantities[itemName] || 0}</Text>
             </View>
           ))
         ) : (
           Object.entries(item.selected_items || {}).map(([itemName, itemData]: [string, any]) => (
-            <View key={itemName} style={styles.itemRow}>
+            <View key={`${item.id}_item_${itemName}`} style={styles.itemRow}>
               <Text style={styles.itemName}>{itemName}</Text>
               <Text style={styles.itemQuantity}>Qty: {item.quantities[itemName] || 0}</Text>
             </View>
@@ -191,23 +262,6 @@ export default function DealerHome() {
         </Text>
       </View>
       
-      {item.images && item.images.length > 0 && (
-        <View style={styles.imagesSection}>
-          <Text style={styles.imagesTitle}>Images:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {item.images.map((imageUrl: string, index: number) => (
-              <TouchableOpacity 
-                key={index} 
-                style={styles.imageContainer}
-                onPress={() => setSelectedImage(imageUrl)}
-              >
-                <Image source={{ uri: imageUrl }} style={styles.requestImage} />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-      
       <View style={styles.actionButtons}>
         {!isMyRequest ? (
           <TouchableOpacity
@@ -215,80 +269,194 @@ export default function DealerHome() {
               styles.requestButton,
               requestedItems.has(item.id) && styles.disabledButton
             ]}
-            onPress={() => handleMakeOffer(item.id)}
+            onPress={() => {
+              console.log('Request button pressed for item:', item.id);
+              handleMakeOffer(item.id, item.user_id);
+            }}
             disabled={requestedItems.has(item.id)}
           >
             <Text style={styles.buttonText}>
-              {requestedItems.has(item.id) ? 'Requested' : 'Request'}
+              {requestedItems.has(item.id) ? 'Request Sent, Waiting for Approval' : 'Request'}
             </Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={styles.assignButton}
-            onPress={() => handleAssignRider(item.id)}
-          >
-            <Text style={styles.buttonText}>Assign Rider</Text>
-          </TouchableOpacity>
+          // Only show assign rider button if status is 'accepted'
+          item.status === 'accepted' ? (
+            <TouchableOpacity
+              style={styles.assignButton}
+              onPress={() => handleAssignRider(item.id)}
+            >
+              <Text style={styles.buttonText}>Assign Rider</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.statusContainer}>
+              <Text style={styles.statusMessage}>
+                {item.status === 'offered' ? 'Waiting for user to accept offer' : 
+                 item.status === 'assigned' ? 'Rider assigned, pickup in progress' :
+                 item.status === 'completed' ? 'Pickup completed' : 'Processing...'}
+              </Text>
+            </View>
+          )
         )}
       </View>
     </View>
   );
 
   const renderHomeContent = () => (
-    <ScrollView 
-      style={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>New Requests</Text>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
-            <Text style={styles.loadingText}>Loading new requests...</Text>
-          </View>
-        ) : pendingRequests.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="checkmark-circle-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No new requests</Text>
-            <Text style={styles.emptySubtext}>New pickup requests will appear here</Text>
-          </View>
-        ) : (
-          pendingRequests.map((request) => renderRequestCard(request, false))
-        )}
+    <View style={styles.content}>
+      {/* Sub-tab Navigation */}
+      <View style={styles.subTabNavigation}>
+        <TouchableOpacity 
+          style={[styles.subTabItem, homeSubTab === 'new' && styles.subTabItemActive]} 
+          onPress={() => setHomeSubTab('new')}
+        >
+          <Text style={[styles.subTabText, homeSubTab === 'new' && styles.subTabTextActive]}>
+            New Request
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.subTabItem, homeSubTab === 'my' && styles.subTabItemActive]} 
+          onPress={() => setHomeSubTab('my')}
+        >
+          <Text style={[styles.subTabText, homeSubTab === 'my' && styles.subTabTextActive]}>
+            My Request
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.subTabItem, homeSubTab === 'requested' && styles.subTabItemActive]} 
+          onPress={() => setHomeSubTab('requested')}
+        >
+          <Text style={[styles.subTabText, homeSubTab === 'requested' && styles.subTabTextActive]}>
+            Requested
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>My Requests</Text>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
-            <Text style={styles.loadingText}>Loading your requests...</Text>
+      {/* Sub-tab Content */}
+      {homeSubTab === 'new' && (
+        <ScrollView 
+          style={styles.subTabContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          <View style={styles.section}>
+            {/* <Text style={styles.sectionTitle}>New Requests</Text> */}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={styles.loadingText}>Loading new requests...</Text>
+              </View>
+            ) : pendingRequests.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="checkmark-circle-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>No new requests</Text>
+                <Text style={styles.emptySubtext}>New pickup requests will appear here</Text>
+              </View>
+            ) : (
+              pendingRequests.map((request) => renderRequestCard(request, false))
+            )}
           </View>
-        ) : myRequests.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="time-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No requested orders</Text>
-            <Text style={styles.emptySubtext}>Your requested orders will appear here</Text>
+        </ScrollView>
+      )}
+
+      {homeSubTab === 'my' && (
+        <ScrollView 
+          style={styles.subTabContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          <View style={styles.section}>
+            {/* <Text style={styles.sectionTitle}>My Requests</Text> */}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={styles.loadingText}>Loading your requests...</Text>
+              </View>
+            ) : acceptedRequests.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="time-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>No accepted orders</Text>
+                <Text style={styles.emptySubtext}>Accepted orders will appear here</Text>
+              </View>
+            ) : (
+              acceptedRequests.map((request) => renderRequestCard(request, true))
+            )}
           </View>
-        ) : (
-          myRequests.map((request) => renderRequestCard(request, true))
-        )}
-      </View>
-    </ScrollView>
+        </ScrollView>
+      )}
+
+      {homeSubTab === 'requested' && (
+        <ScrollView 
+          style={styles.subTabContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          <View style={styles.section}>
+            {/* <Text style={styles.sectionTitle}>Requested Items</Text> */}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={styles.loadingText}>Loading requested items...</Text>
+              </View>
+            ) : pendingRequests.filter(request => requestedItems.has(request.id)).length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="hourglass-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>No requested items</Text>
+                <Text style={styles.emptySubtext}>Items you've requested will appear here</Text>
+              </View>
+            ) : (
+              pendingRequests
+                .filter(request => requestedItems.has(request.id))
+                .map((request) => renderRequestCard(request, false))
+            )}
+          </View>
+        </ScrollView>
+      )}
+    </View>
   );
 
   const renderHistoryContent = () => (
     <View style={styles.content}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Transaction History</Text>
-        <View style={styles.emptyContainer}>
-          <Ionicons name="time-outline" size={48} color="#ccc" />
-          <Text style={styles.emptyText}>No transaction history</Text>
-          <Text style={styles.emptySubtext}>Your completed transactions will appear here</Text>
+      <ScrollView 
+        style={styles.subTabContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Transaction History</Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#4CAF50" />
+              <Text style={styles.loadingText}>Loading history...</Text>
+            </View>
+          ) : completedRequests.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="time-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No completed transactions</Text>
+              <Text style={styles.emptySubtext}>Your completed transactions will appear here</Text>
+            </View>
+          ) : (
+            completedRequests.map((request) => (
+              <View key={request.id} style={styles.historyCard}>
+                <View style={styles.historyHeader}>
+                  <Text style={styles.customerName}>{request.customer_name}</Text>
+                  <Text style={styles.completedDate}>
+                    {new Date(request.updated_at).toLocaleDateString()}
+                  </Text>
+                </View>
+                <Text style={styles.customerEmail}>{request.customer_email}</Text>
+                <Text style={styles.riderName}>Rider: {request.rider_name || 'N/A'}</Text>
+                <Text style={styles.offeredPrice}>Price: Rs.{request.offered_price}</Text>
+                <Text style={styles.location}>📍 {request.location}</Text>
+              </View>
+            ))
+          )}
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 
@@ -440,6 +608,96 @@ export default function DealerHome() {
           </TouchableOpacity>
         </View>
       </Modal>
+
+      {/* Price Input Modal */}
+      <Modal
+        visible={showPriceModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPriceModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBackground}>
+            <View style={styles.priceModalContent}>
+              <Text style={styles.priceModalTitle}>Make Offer</Text>
+              <Text style={styles.priceModalSubtitle}>Enter your offered price (Rs.)</Text>
+              
+              <TextInput
+                style={styles.priceInput}
+                placeholder="Enter price..."
+                value={priceInput}
+                onChangeText={setPriceInput}
+                keyboardType="numeric"
+                autoFocus
+              />
+              
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => {
+                    setShowPriceModal(false);
+                    setCurrentRequest(null);
+                    setPriceInput('');
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.submitButton}
+                  onPress={handleSubmitOffer}
+                >
+                  <Text style={styles.submitButtonText}>Submit</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Rider Selection Modal */}
+      <Modal
+        visible={showRiderModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRiderModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBackground}>
+            <View style={styles.riderModalContent}>
+              <Text style={styles.riderModalTitle}>Select Rider</Text>
+              <Text style={styles.riderModalSubtitle}>Choose a rider to assign</Text>
+              
+              <ScrollView style={styles.riderList}>
+                {riders.map((rider) => (
+                  <View key={rider.id} style={styles.riderItem}>
+                    <View style={styles.riderInfo}>
+                      <Text style={styles.riderName}>{rider.first_name} {rider.last_name}</Text>
+                      <Text style={styles.riderEmail}>{rider.email}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.assignButton}
+                      onPress={() => handleAssignRiderToRequest(rider.id, `${rider.first_name} ${rider.last_name}`)}
+                    >
+                      <Text style={styles.assignButtonText}>Assign</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+              
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setShowRiderModal(false);
+                  setCurrentRequestForRider(null);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -479,6 +737,33 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   content: {
+    flex: 1,
+  },
+  subTabNavigation: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  subTabItem: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  subTabItemActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#4CAF50',
+  },
+  subTabText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  subTabTextActive: {
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  subTabContent: {
     flex: 1,
   },
   section: {
@@ -598,6 +883,22 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  imagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+  },
+  placeholderText: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
@@ -611,12 +912,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   assignButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    flex: 1,
-    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+  },
+  assignButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   disabledButton: {
     backgroundColor: '#ccc',
@@ -644,8 +948,6 @@ const styles = StyleSheet.create({
   },
   riderInfo: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   riderAvatar: {
     width: 40,
@@ -686,6 +988,27 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+    textTransform: 'capitalize',
+  },
+  statusBadge: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+    borderRadius: 8,
+  },
+  statusMessage: {
     fontSize: 12,
     fontWeight: '600',
     color: '#4CAF50',
@@ -733,4 +1056,109 @@ const styles = StyleSheet.create({
     height: height * 0.7,
     borderRadius: 12,
   },
+  priceModalContent: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    width: '80%',
+    alignItems: 'center',
+  },
+  priceModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  priceModalSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+  },
+  priceInput: {
+    width: '100%',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    marginBottom: 20,
+    fontSize: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    backgroundColor: '#ccc',
+  },
+  cancelButtonText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  submitButton: {
+    backgroundColor: '#4CAF50',
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  historyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  completedDate: {
+    fontSize: 14,
+    color: '#666',
+  },
+  location: {
+    fontSize: 14,
+    color: '#666',
+  },
+  riderModalContent: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    width: '80%',
+    alignItems: 'center',
+  },
+  riderModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  riderModalSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+  },
+  riderList: {
+    maxHeight: 200,
+  },
+  riderItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+
 }); 
