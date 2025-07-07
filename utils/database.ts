@@ -73,9 +73,10 @@ export interface PickupRequest {
   pickup_time: Date;
   location: string;
   images: string[]; // Array of image URLs
-  status: 'pending' | 'accepted' | 'picked_up' | 'completed';
+  status: 'pending' | 'offered' | 'accepted' | 'picked_up' | 'completed';
   dealer_id?: string; // Dealer who accepted
   rider_id?: string; // Rider assigned
+  offered_price?: number; // Price offered by dealer
   created_at: Date;
   updated_at: Date;
 }
@@ -167,11 +168,27 @@ export async function initializeDatabase() {
         status VARCHAR(20) DEFAULT 'pending',
         dealer_id VARCHAR(255),
         rider_id VARCHAR(255),
+        offered_price DECIMAL(10,2),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (dealer_id) REFERENCES users(id),
         FOREIGN KEY (rider_id) REFERENCES users(id)
+      )
+    `;
+
+    // Create notifications table if it doesn't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        related_id VARCHAR(255),
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     `;
     
@@ -731,6 +748,187 @@ export async function updatePickupRequestStatus(
     return result[0] as PickupRequest;
   } catch (error) {
     console.error('Error updating pickup request status:', error);
+    throw error;
+  }
+}
+
+// Make offer on pickup request by dealer
+export async function makeOfferOnPickupRequest(
+  requestId: string, 
+  dealerId: string, 
+  offeredPrice: number
+): Promise<PickupRequest> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      UPDATE pickup_requests 
+      SET status = 'offered', 
+          dealer_id = ${dealerId},
+          offered_price = ${offeredPrice},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${requestId} AND status = 'pending'
+      RETURNING *
+    `;
+    
+    if (result.length === 0) {
+      throw new Error('Pickup request not found or already has an offer');
+    }
+    
+    console.log('Offer made successfully:', result[0]);
+    return result[0] as PickupRequest;
+  } catch (error) {
+    console.error('Error making offer:', error);
+    throw error;
+  }
+}
+
+// Accept offer by user
+export async function acceptOfferByUser(
+  requestId: string
+): Promise<PickupRequest> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      UPDATE pickup_requests 
+      SET status = 'accepted', 
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${requestId} AND status = 'offered'
+      RETURNING *
+    `;
+    
+    if (result.length === 0) {
+      throw new Error('Offer not found or already accepted');
+    }
+    
+    console.log('Offer accepted successfully:', result[0]);
+    return result[0] as PickupRequest;
+  } catch (error) {
+    console.error('Error accepting offer:', error);
+    throw error;
+  }
+}
+
+// Get pickup requests with offers for user
+export async function getPickupRequestsWithOffers(userId: string): Promise<(PickupRequest & { dealer_name: string; dealer_email: string })[]> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      SELECT pr.*, u.first_name as dealer_name, u.email as dealer_email
+      FROM pickup_requests pr
+      JOIN users u ON pr.dealer_id = u.id
+      WHERE pr.user_id = ${userId} AND pr.status = 'offered'
+      ORDER BY pr.updated_at DESC
+    `;
+    
+    return result as (PickupRequest & { dealer_name: string; dealer_email: string })[];
+  } catch (error) {
+    console.error('Error getting pickup requests with offers:', error);
+    throw error;
+  }
+}
+
+// Get accepted pickup requests for riders
+export async function getAcceptedPickupRequests(): Promise<(PickupRequest & { customer_name: string; customer_email: string; dealer_name: string })[]> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      SELECT pr.*, 
+             c.first_name as customer_name, c.email as customer_email,
+             d.first_name as dealer_name
+      FROM pickup_requests pr
+      JOIN users c ON pr.user_id = c.id
+      JOIN users d ON pr.dealer_id = d.id
+      WHERE pr.status = 'accepted'
+      ORDER BY pr.updated_at DESC
+    `;
+    
+    return result as (PickupRequest & { customer_name: string; customer_email: string; dealer_name: string })[];
+  } catch (error) {
+    console.error('Error getting accepted pickup requests:', error);
+    throw error;
+  }
+}
+
+// Get dealer's requested pickup requests
+export async function getDealerRequestedPickupRequests(dealerId: string): Promise<(PickupRequest & { customer_name: string; customer_email: string })[]> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      SELECT pr.*, c.first_name as customer_name, c.email as customer_email
+      FROM pickup_requests pr
+      JOIN users c ON pr.user_id = c.id
+      WHERE pr.dealer_id = ${dealerId} AND pr.status = 'offered'
+      ORDER BY pr.updated_at DESC
+    `;
+    
+    return result as (PickupRequest & { customer_name: string; customer_email: string })[];
+  } catch (error) {
+    console.error('Error getting dealer requested pickup requests:', error);
+    throw error;
+  }
+}
+
+// Create notification
+export async function createNotification(notificationData: {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: string;
+  related_id?: string;
+}): Promise<any> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      INSERT INTO notifications (id, user_id, title, message, type, related_id, created_at)
+      VALUES (${notificationData.id}, ${notificationData.user_id}, ${notificationData.title}, ${notificationData.message}, ${notificationData.type}, ${notificationData.related_id || null}, CURRENT_TIMESTAMP)
+      RETURNING *
+    `;
+    
+    console.log('Notification created successfully:', result[0]);
+    return result[0];
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    throw error;
+  }
+}
+
+// Get pending pickup requests with user information
+export async function getPendingPickupRequestsWithUser(): Promise<(PickupRequest & { customer_name: string; customer_email: string })[]> {
+  try {
+    if (!sql) {
+      throw new Error('Database not configured');
+    }
+
+    const result = await sql`
+      SELECT pr.*, u.first_name as customer_name, u.email as customer_email
+      FROM pickup_requests pr
+      JOIN users u ON pr.user_id = u.id
+      WHERE pr.status = 'pending'
+      ORDER BY pr.created_at ASC
+    `;
+    
+    return result as (PickupRequest & { customer_name: string; customer_email: string })[];
+  } catch (error) {
+    console.error('Error getting pending pickup requests with user:', error);
     throw error;
   }
 } 

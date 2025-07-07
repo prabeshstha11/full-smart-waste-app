@@ -1,25 +1,32 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  TouchableOpacity, 
-  View, 
-  ScrollView, 
-  ActivityIndicator,
-  Alert,
-  RefreshControl
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
-import { getAvailableItems, acceptItem, getAvailableRiders, assignRider } from '../utils/database';
-import { Item, User } from '../utils/database';
+import { assignRider, createNotification, getAvailableRiders, getDealerRequestedPickupRequests, getPendingPickupRequestsWithUser, makeOfferOnPickupRequest, PickupRequest, User } from '../utils/database';
+
+const { width, height } = Dimensions.get('window');
 
 export default function DealerHome() {
   const [activeTab, setActiveTab] = useState('home');
-  const [pendingItems, setPendingItems] = useState<Item[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<(PickupRequest & { customer_name: string; customer_email: string })[]>([]);
+  const [myRequests, setMyRequests] = useState<(PickupRequest & { customer_name: string; customer_email: string })[]>([]);
   const [riders, setRiders] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [requestedItems, setRequestedItems] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -28,11 +35,19 @@ export default function DealerHome() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [itemsData, ridersData] = await Promise.all([
-        getAvailableItems(),
+      const dealerId = 'dummy_dealer_001'; // In a real app, this would come from authentication
+      const [requestsData, myRequestsData, ridersData] = await Promise.all([
+        getPendingPickupRequestsWithUser(),
+        getDealerRequestedPickupRequests(dealerId),
         getAvailableRiders()
       ]);
-      setPendingItems(itemsData);
+      
+      console.log('Pending requests:', requestsData);
+      console.log('My requests:', myRequestsData);
+      console.log('Riders:', ridersData);
+      
+      setPendingRequests(requestsData);
+      setMyRequests(myRequestsData);
       setRiders(ridersData);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -52,29 +67,172 @@ export default function DealerHome() {
     router.push('/dealer-profile');
   };
 
-  const handleAcceptItem = async (itemId: string) => {
+  const handleMakeOffer = async (requestId: string) => {
     try {
-      // For now, using a dummy dealer ID. In a real app, this would come from authentication
       const dealerId = 'dummy_dealer_001';
-      await acceptItem(itemId, dealerId);
-      Alert.alert('Success', 'Item accepted successfully');
-      loadData(); // Refresh the list
+      
+      Alert.prompt(
+        'Make Offer',
+        'Enter your offered price (₹):',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Send Offer',
+            onPress: async (price) => {
+              if (price && !isNaN(Number(price))) {
+                const offeredPrice = Number(price);
+                await makeOfferOnPickupRequest(requestId, dealerId, offeredPrice);
+                
+                // Create notification for user
+                const notificationId = `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                await createNotification({
+                  id: notificationId,
+                  user_id: 'dummy_user_001', // In a real app, get from request
+                  title: 'New Dealer Offer',
+                  message: `A dealer has made an offer of ₹${offeredPrice} for your pickup request`,
+                  type: 'dealer_offer',
+                  related_id: requestId
+                });
+                
+                // Mark as requested
+                setRequestedItems(prev => new Set(prev).add(requestId));
+                
+                Alert.alert('Success', 'Offer sent to user successfully');
+                loadData();
+              } else {
+                Alert.alert('Error', 'Please enter a valid price');
+              }
+            },
+          },
+        ],
+        'plain-text',
+        '',
+        'numeric'
+      );
     } catch (error) {
-      console.error('Error accepting item:', error);
-      Alert.alert('Error', 'Failed to accept item');
+      console.error('Error making offer:', error);
+      Alert.alert('Error', 'Failed to send offer');
     }
   };
 
-  const handleAssignRider = async (itemId: string, riderId: string) => {
+  const handleAssignRider = async (requestId: string) => {
     try {
-      await assignRider(itemId, riderId);
-      Alert.alert('Success', 'Rider assigned successfully');
-      loadData(); // Refresh the list
+      if (riders.length === 0) {
+        Alert.alert('No Riders', 'No riders are currently available');
+        return;
+      }
+
+      const riderOptions = riders.map(rider => ({
+        text: `${rider.first_name} ${rider.last_name}`,
+        onPress: async () => {
+          try {
+            await assignRider(requestId, rider.id);
+            Alert.alert('Success', `Rider ${rider.first_name} assigned successfully`);
+            loadData();
+          } catch (error) {
+            console.error('Error assigning rider:', error);
+            Alert.alert('Error', 'Failed to assign rider');
+          }
+        }
+      }));
+
+      Alert.alert(
+        'Assign Rider',
+        'Select a rider to assign:',
+        riderOptions
+      );
     } catch (error) {
       console.error('Error assigning rider:', error);
       Alert.alert('Error', 'Failed to assign rider');
     }
   };
+
+  const renderRequestCard = (item: PickupRequest & { customer_name: string; customer_email: string }, isMyRequest: boolean = false) => (
+    <View style={styles.requestCard}>
+      <View style={styles.requestHeader}>
+        <Text style={styles.customerName}>{item.customer_name}</Text>
+        <Text style={styles.customerEmail}>{item.customer_email}</Text>
+        {isMyRequest && item.offered_price && (
+          <Text style={styles.offeredPrice}>Offered: ₹{item.offered_price}</Text>
+        )}
+      </View>
+      
+      <View style={styles.itemsSection}>
+        <Text style={styles.itemsTitle}>Items:</Text>
+        {Array.isArray(item.selected_items) ? (
+          item.selected_items.map((itemName: string, index: number) => (
+            <View key={index} style={styles.itemRow}>
+              <Text style={styles.itemName}>{itemName}</Text>
+              <Text style={styles.itemQuantity}>Qty: {item.quantities[itemName] || 0}</Text>
+            </View>
+          ))
+        ) : (
+          Object.entries(item.selected_items || {}).map(([itemName, itemData]: [string, any]) => (
+            <View key={itemName} style={styles.itemRow}>
+              <Text style={styles.itemName}>{itemName}</Text>
+              <Text style={styles.itemQuantity}>Qty: {item.quantities[itemName] || 0}</Text>
+            </View>
+          ))
+        )}
+      </View>
+      
+      <View style={styles.detailsSection}>
+        <Text style={styles.detailText}>
+          📅 Pickup Date: {new Date(item.pickup_date).toLocaleDateString()}
+        </Text>
+        <Text style={styles.detailText}>
+          🕒 Pickup Time: {new Date(item.pickup_time).toLocaleTimeString()}
+        </Text>
+        <Text style={styles.detailText}>
+          📍 Location: {item.location}
+        </Text>
+      </View>
+      
+      {item.images && item.images.length > 0 && (
+        <View style={styles.imagesSection}>
+          <Text style={styles.imagesTitle}>Images:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {item.images.map((imageUrl: string, index: number) => (
+              <TouchableOpacity 
+                key={index} 
+                style={styles.imageContainer}
+                onPress={() => setSelectedImage(imageUrl)}
+              >
+                <Image source={{ uri: imageUrl }} style={styles.requestImage} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      
+      <View style={styles.actionButtons}>
+        {!isMyRequest ? (
+          <TouchableOpacity
+            style={[
+              styles.requestButton,
+              requestedItems.has(item.id) && styles.disabledButton
+            ]}
+            onPress={() => handleMakeOffer(item.id)}
+            disabled={requestedItems.has(item.id)}
+          >
+            <Text style={styles.buttonText}>
+              {requestedItems.has(item.id) ? 'Requested' : 'Request'}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.assignButton}
+            onPress={() => handleAssignRider(item.id)}
+          >
+            <Text style={styles.buttonText}>Assign Rider</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
 
   const renderHomeContent = () => (
     <ScrollView 
@@ -84,77 +242,38 @@ export default function DealerHome() {
       }
     >
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Pending Pickup Requests</Text>
+        <Text style={styles.sectionTitle}>New Requests</Text>
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4CAF50" />
-            <Text style={styles.loadingText}>Loading pending requests...</Text>
+            <Text style={styles.loadingText}>Loading new requests...</Text>
           </View>
-        ) : pendingItems.length === 0 ? (
+        ) : pendingRequests.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="checkmark-circle-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No pending requests</Text>
-            <Text style={styles.emptySubtext}>All requests have been processed</Text>
+            <Text style={styles.emptyText}>No new requests</Text>
+            <Text style={styles.emptySubtext}>New pickup requests will appear here</Text>
           </View>
         ) : (
-          pendingItems.map((item) => (
-            <View key={item.id} style={styles.itemCard}>
-              <View style={styles.itemHeader}>
-                <Text style={styles.itemTitle}>{item.title}</Text>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusText}>Pending</Text>
-                </View>
-              </View>
-              
-              <Text style={styles.itemDescription}>{item.description}</Text>
-              
-              <View style={styles.itemDetails}>
-                <View style={styles.detailRow}>
-                  <Ionicons name="cash-outline" size={16} color="#666" />
-                  <Text style={styles.detailText}>₹{item.price}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Ionicons name="location-outline" size={16} color="#666" />
-                  <Text style={styles.detailText}>
-                    {item.location_lat.toFixed(4)}, {item.location_lng.toFixed(4)}
-                  </Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Ionicons name="person-outline" size={16} color="#666" />
-                  <Text style={styles.detailText}>
-                    {(item as any).customer_name || 'Customer'}
-                  </Text>
-                </View>
-              </View>
+          pendingRequests.map((request) => renderRequestCard(request, false))
+        )}
+      </View>
 
-              <View style={styles.actionButtons}>
-                <TouchableOpacity 
-                  style={styles.acceptButton}
-                  onPress={() => handleAcceptItem(item.id)}
-                >
-                  <Text style={styles.acceptButtonText}>Accept</Text>
-                </TouchableOpacity>
-                
-                {riders.length > 0 && (
-                  <TouchableOpacity 
-                    style={styles.assignButton}
-                    onPress={() => {
-                      Alert.alert(
-                        'Assign Rider',
-                        'Select a rider to assign:',
-                        riders.map(rider => ({
-                          text: `${rider.first_name} ${rider.last_name}`,
-                          onPress: () => handleAssignRider(item.id, rider.id)
-                        }))
-                      );
-                    }}
-                  >
-                    <Text style={styles.assignButtonText}>Assign Rider</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          ))
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>My Requests</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.loadingText}>Loading your requests...</Text>
+          </View>
+        ) : myRequests.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="time-outline" size={48} color="#ccc" />
+            <Text style={styles.emptyText}>No requested orders</Text>
+            <Text style={styles.emptySubtext}>Your requested orders will appear here</Text>
+          </View>
+        ) : (
+          myRequests.map((request) => renderRequestCard(request, true))
         )}
       </View>
     </ScrollView>
@@ -300,6 +419,27 @@ export default function DealerHome() {
           <Text style={[styles.navText, activeTab === 'riders' && styles.navTextActive]}>Riders</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Image Modal */}
+      <Modal
+        visible={selectedImage !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedImage(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity 
+            style={styles.modalBackground} 
+            onPress={() => setSelectedImage(null)}
+          >
+            <Image 
+              source={{ uri: selectedImage || '' }} 
+              style={styles.modalImage}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -375,7 +515,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
-  itemCard: {
+  requestCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
@@ -389,74 +529,99 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  itemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+  requestHeader: {
+    marginBottom: 12,
   },
-  itemTitle: {
+  customerName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    flex: 1,
   },
-  statusBadge: {
-    backgroundColor: '#FFA726',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  itemDescription: {
+  customerEmail: {
     fontSize: 14,
     color: '#666',
+    marginTop: 2,
+  },
+  offeredPrice: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginTop: 4,
+  },
+  itemsSection: {
     marginBottom: 12,
-    lineHeight: 20,
   },
-  itemDetails: {
-    marginBottom: 16,
+  itemsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
   },
-  detailRow: {
+  itemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 4,
+  },
+  itemName: {
+    fontSize: 14,
+    color: '#333',
+  },
+  itemQuantity: {
+    fontSize: 14,
+    color: '#666',
+  },
+  detailsSection: {
+    marginBottom: 12,
   },
   detailText: {
     fontSize: 14,
     color: '#666',
-    marginLeft: 8,
+    marginBottom: 4,
+  },
+  imagesSection: {
+    marginBottom: 16,
+  },
+  imagesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  imageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 8,
+    overflow: 'hidden',
+  },
+  requestImage: {
+    width: '100%',
+    height: '100%',
   },
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
   },
-  acceptButton: {
+  requestButton: {
     backgroundColor: '#4CAF50',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 8,
     flex: 1,
     alignItems: 'center',
-  },
-  acceptButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
   },
   assignButton: {
     backgroundColor: '#2196F3',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 8,
     flex: 1,
     alignItems: 'center',
   },
-  assignButtonText: {
+  disabledButton: {
+    backgroundColor: '#ccc',
+  },
+  buttonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
@@ -520,6 +685,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     marginRight: 6,
   },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
   bottomNav: {
     flexDirection: 'row',
     backgroundColor: '#fff',
@@ -544,5 +714,23 @@ const styles = StyleSheet.create({
   navTextActive: {
     color: '#4CAF50',
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBackground: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  modalImage: {
+    width: width * 0.9,
+    height: height * 0.7,
+    borderRadius: 12,
   },
 }); 
