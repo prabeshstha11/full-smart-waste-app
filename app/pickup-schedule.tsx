@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { createPickupRequest } from '../utils/database';
+import { uploadToCloudinary } from '../utils/cloudinaryService';
 
 export default function PickupSchedule() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -121,7 +122,23 @@ export default function PickupSchedule() {
   };
 
   const handleNext = () => {
-    if (currentStep < 3) {
+    if (currentStep === 1) {
+      if (selectedItems.length === 0) {
+        Alert.alert('Error', 'Please select at least one waste category');
+        return;
+      }
+      setCurrentStep(currentStep + 1);
+    } else if (currentStep === 2) {
+      // Check if any selected item has zero quantity
+      const hasZeroQuantity = selectedItems.some(itemId => (quantity[itemId] || 0) === 0);
+      if (hasZeroQuantity) {
+        Alert.alert('Error', 'Quantity cannot be zero for selected items. Please set a quantity for all selected waste categories.');
+        return;
+      }
+      if (selectedImages.length === 0) {
+        Alert.alert('Error', 'Please upload at least one photo of the waste items');
+        return;
+      }
       setCurrentStep(currentStep + 1);
     }
   };
@@ -134,27 +151,7 @@ export default function PickupSchedule() {
     }
   };
 
-  // Simple Cloudinary upload function with your keys
-  const uploadToCloudinary = async (imageUri: string): Promise<string> => {
-    const CLOUD_NAME = 'dl25bnqfx';
-    const UPLOAD_PRESET = 'ml_default'; // Use default unsigned preset
 
-    const data = new FormData();
-    data.append('file', {
-      uri: imageUri,
-      type: 'image/jpeg',
-      name: 'upload.jpg',
-    } as any);
-    data.append('upload_preset', UPLOAD_PRESET);
-
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-      method: 'POST',
-      body: data,
-    });
-
-    const result = await res.json();
-    return result.secure_url;
-  };
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -261,7 +258,12 @@ export default function PickupSchedule() {
                           >
                             <Ionicons name="remove" size={16} color="#666" />
                           </TouchableOpacity>
-                          <Text style={styles.quantityValue}>{itemQuantity}</Text>
+                          <Text style={[
+                            styles.quantityValue,
+                            itemQuantity === 0 && styles.quantityValueZero
+                          ]}>
+                            {itemQuantity}
+                          </Text>
                           <TouchableOpacity 
                             style={styles.quantityButton}
                             onPress={() => handleQuantityChange(itemId, true)}
@@ -668,9 +670,17 @@ export default function PickupSchedule() {
       {currentStep < 3 && (
         <View style={styles.bottomButtonContainer}>
           <TouchableOpacity 
-            style={styles.nextButton} 
+            style={[
+              styles.nextButton,
+              ((currentStep === 1 && selectedItems.length === 0) ||
+               (currentStep === 2 && (selectedImages.length === 0 || selectedItems.some(itemId => (quantity[itemId] || 0) === 0)))) && 
+              styles.nextButtonDisabled
+            ]} 
             onPress={handleNext}
-            disabled={currentStep === 1 && selectedItems.length === 0}
+            disabled={
+              (currentStep === 1 && selectedItems.length === 0) ||
+              (currentStep === 2 && (selectedImages.length === 0 || selectedItems.some(itemId => (quantity[itemId] || 0) === 0)))
+            }
           >
             <Text style={styles.nextButtonText}>Next</Text>
           </TouchableOpacity>
@@ -927,6 +937,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
+  quantityValueZero: {
+    color: '#ff4444',
+    fontWeight: 'bold',
+  },
   addImageButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1163,6 +1177,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  nextButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
   },
   nextButtonText: {
     color: '#fff',

@@ -666,24 +666,39 @@ export default function DealerHome() {
           <View style={styles.modalBackground}>
             <View style={styles.riderModalContent}>
               <Text style={styles.riderModalTitle}>Select Rider</Text>
-              <Text style={styles.riderModalSubtitle}>Choose a rider to assign</Text>
+              <Text style={styles.riderModalSubtitle}>Choose a rider to assign to this pickup request</Text>
               
-              <ScrollView style={styles.riderList}>
-                {riders.map((rider) => (
-                  <View key={rider.id} style={styles.riderItem}>
-                    <View style={styles.riderInfo}>
-                      <Text style={styles.riderName}>{rider.first_name} {rider.last_name}</Text>
-                      <Text style={styles.riderEmail}>{rider.email}</Text>
+              {riders.length === 0 ? (
+                <View style={styles.emptyRiderContainer}>
+                  <Ionicons name="bicycle-outline" size={48} color="#ccc" />
+                  <Text style={styles.emptyRiderText}>No riders available</Text>
+                  <Text style={styles.emptyRiderSubtext}>Please try again later</Text>
+                </View>
+              ) : (
+                <ScrollView style={styles.riderList} showsVerticalScrollIndicator={false}>
+                  {riders.map((rider) => (
+                    <View key={rider.id} style={styles.riderItem}>
+                      <View style={styles.riderInfo}>
+                        <View style={styles.riderAvatar}>
+                          <Text style={styles.riderInitial}>
+                            {rider.first_name.charAt(0)}{rider.last_name.charAt(0)}
+                          </Text>
+                        </View>
+                        <View style={styles.riderDetails}>
+                          <Text style={styles.riderName}>{rider.first_name} {rider.last_name}</Text>
+                          <Text style={styles.riderEmail}>{rider.email}</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.assignButton}
+                        onPress={() => handleAssignRiderToRequest(rider.id, `${rider.first_name} ${rider.last_name}`)}
+                      >
+                        <Text style={styles.assignButtonText}>Assign</Text>
+                      </TouchableOpacity>
                     </View>
-                    <TouchableOpacity
-                      style={styles.assignButton}
-                      onPress={() => handleAssignRiderToRequest(rider.id, `${rider.first_name} ${rider.last_name}`)}
-                    >
-                      <Text style={styles.assignButtonText}>Assign</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
+                  ))}
+                </ScrollView>
+              )}
               
               <TouchableOpacity
                 style={styles.cancelButton}
@@ -913,9 +928,17 @@ const styles = StyleSheet.create({
   },
   assignButton: {
     backgroundColor: '#4CAF50',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   assignButtonText: {
     color: '#fff',
@@ -1133,10 +1156,19 @@ const styles = StyleSheet.create({
   },
   riderModalContent: {
     backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 12,
-    width: '80%',
+    padding: 24,
+    borderRadius: 16,
+    width: '85%',
+    maxHeight: '70%',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 10,
   },
   riderModalTitle: {
     fontSize: 20,
@@ -1150,15 +1182,36 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   riderList: {
-    maxHeight: 200,
+    maxHeight: 300,
+    width: '100%',
+    marginBottom: 20,
   },
   riderItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    padding: 16,
+    marginBottom: 8,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  emptyRiderContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyRiderText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 12,
+  },
+  emptyRiderSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 4,
+    textAlign: 'center',
   },
 
 }); 
