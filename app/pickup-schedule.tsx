@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { createPickupRequest } from '../utils/database';
 import { uploadToCloudinary } from '../utils/cloudinaryService';
+import { pickAndUploadImage } from '../utils/cloudinaryUpload';
 
 export default function PickupSchedule() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -151,7 +152,11 @@ export default function PickupSchedule() {
     }
   };
 
-
+  // Update image picking logic to upload to Cloudinary and store URLs
+  const handlePickAndUploadImages = async () => {
+    const url = await pickAndUploadImage();
+    if (url) setSelectedImages(prev => [...prev, url]);
+  };
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -281,7 +286,7 @@ export default function PickupSchedule() {
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>Upload Product Photos</Text>
                 <Text style={styles.requiredText}>* Required - Please upload photos of the waste items</Text>
-                <TouchableOpacity style={styles.addImageButton} onPress={pickImages}>
+                <TouchableOpacity style={styles.addImageButton} onPress={handlePickAndUploadImages}>
                   <Ionicons name="camera-outline" size={24} color="#4CAF50" />
                   <Text style={styles.addImageText}>Upload Photos</Text>
                 </TouchableOpacity>
@@ -554,14 +559,8 @@ export default function PickupSchedule() {
       setUploading(true);
       
       try {
-        // Upload images to Cloudinary (like your example)
-        console.log('Uploading images to Cloudinary...');
-        const uploadPromises = selectedImages.map(imageUri => uploadToCloudinary(imageUri));
-        const urls = await Promise.all(uploadPromises);
-        
-        setCloudinaryUrls(urls);
-        console.log('✅ Images uploaded to Cloudinary:', urls);
-
+        // No upload step needed, images are already uploaded to Cloudinary
+        const urls = selectedImages;
         const pickupRequest = {
           id: `pickup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           user_id: 'dummy_user_001', // Use valid dummy user ID
@@ -578,8 +577,8 @@ export default function PickupSchedule() {
         Alert.alert('Success', 'Pickup request created successfully!');
         router.push('/customer-home');
       } catch (uploadError) {
-        console.error('❌ Upload error:', uploadError);
-        Alert.alert('Error', 'Failed to upload images. Please try again.');
+        console.error('❌ Error:', uploadError);
+        Alert.alert('Error', 'Failed to create pickup request. Please try again.');
       } finally {
         setUploading(false);
       }
@@ -705,8 +704,6 @@ export default function PickupSchedule() {
           </TouchableOpacity>
         </View>
       )}
-
-
 
       {/* Date and Time Picker Modals */}
       {renderDatePicker()}
